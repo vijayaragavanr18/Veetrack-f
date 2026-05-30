@@ -1,0 +1,66 @@
+# ========================
+# VeeTrack .gitignore
+# ========================
+
+# --- Next.js / Frontend ---
+node_modules/
+.next/
+out/
+bun.lock
+package-lock.json
+
+# --- Python / Backend ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+*.egg
+
+# --- Database ---
+db/
+*.db
+*.sqlite
+*.sqlite3
+
+# --- Prisma ---
+prisma/*.db
+
+# --- Environment / Secrets ---
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# --- IDE ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Logs ---
+*.log
+dev.log
+npm-debug.log*
+
+# --- Sandbox / CI artifacts ---
+.agent-browser/
+.cache/
+.zscripts/
+veetrack-project.tar.gz
+worklog.md
+TODO
+
+# --- Build artifacts ---
+*.tar.gz
+*.zip
