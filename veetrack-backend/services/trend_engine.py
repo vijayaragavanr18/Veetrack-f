@@ -1,158 +1,96 @@
 """
-Trend engine — analyses patterns across articles to identify trending topics.
+Trend engine — real-time trend scoring using pandas rolling windows + scipy zscore.
 
-Uses keyword frequency, co-occurrence, and sentiment aggregation
-to produce a list of TrendTopic objects.
+Stores per-keyword time series in memory (Redis later).
+Records article ingestion events and computes trend scores
+based on volume spikes and sentiment shifts.
 """
 
 from __future__ import annotations
 
 import logging
-from collections import Counter, defaultdict
-from typing import Optional
+from collections import defaultdict
+from datetime import datetime, timezone
 
-from models.schemas import (
-    ArticleCard,
-    SourceType,
-    TrendTopic,
-)
+import numpy as np
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 
+# Per-keyword ingestion history (in-memory, Redis later)
+_keyword_history: dict[str, list[dict]] = defaultdict(list)
 
-def compute_trends(
-    articles: list[ArticleCard],
-    max_topics: int = 20,
-    min_count: int = 2,
-) -> list[TrendTopic]:
+
+def record_ingestion(
+    keyword: str, article_count: int, avg_sentiment_score: float
+) -> None:
     """
-    Compute trending topics from a list of enriched articles.
-
-    Strategy:
-    1. Collect all keywords from all articles.
-    2. Group articles by their top keyword.
-    3. Compute aggregated sentiment, risk, and source diversity per topic.
-    4. Sort by count (descending) and return top topics.
+    Record an ingestion event for a keyword.
+    Keeps only the last 7 days of data.
     """
-    if not articles:
-        return []
-
-    # ── Build keyword → articles mapping ─────────────────────
-    keyword_articles: dict[str, list[ArticleCard]] = defaultdict(list)
-
-    for article in articles:
-        for kw in article.keywords[:5]:  # use top 5 keywords per article
-            keyword_articles[kw].append(article)
-
-    # ── Compute trend stats ──────────────────────────────────
-    trends: list[TrendTopic] = []
-
-    for keyword, group in keyword_articles.items():
-        count = len(group)
-        if count < min_count:
-            continue
-
-        # Aggregated sentiment
-        sentiments = [
-            a.sentiment.score for a in group if a.sentiment is not None
-        ]
-        sentiment_avg = (
-            sum(sentiments) / len(sentiments) if sentiments else 0.0
-        )
-
-        # Aggregated risk
-        risk_avg = sum(a.risk_score for a in group) / count
-
-        # Source diversity
-        sources = list({a.source.value for a in group})
-
-        # Sample articles (up to 3)
-        sample = sorted(
-            group,
-            key=lambda a: a.published_at or a.fetched_at,
-            reverse=True,
-        )[:3]
-
-        trends.append(
-            TrendTopic(
-                keyword=keyword,
-                count=count,
-                sentiment_avg=round(sentiment_avg, 3),
-                risk_avg=round(risk_avg, 3),
-                sources=sources,
-                sample_articles=sample,
-            )
-        )
-
-    # ── Sort by count then risk ──────────────────────────────
-    trends.sort(key=lambda t: (t.count, t.risk_avg), reverse=True)
-
-    return trends[:max_topics]
+    _keyword_history[keyword].append(
+        {
+            "timestamp": datetime.now(timezone.utc),
+            "count": article_count,
+            "avg_sentiment": avg_sentiment_score,
+        }
+    )
+    # Keep only last 7 days
+    cutoff = pd.Timestamp.now(tz="UTC") - pd.Timedelta(days=7)
+    _keyword_history[keyword] = [
+        r
+        for r in _keyword_history[keyword]
+        if pd.Timestamp(r["timestamp"]) > cutoff
+    ]
 
 
-def compute_source_breakdown(
-    articles: list[ArticleCard],
-) -> dict[str, int]:
-    """Return a count of articles per source."""
-    counter: Counter = Counter()
-    for a in articles:
-        counter[a.source.value] += 1
-    return dict(counter)
+def compute_trend_score_live(
+    keyword: str, current_count: int, current_sentiment: float
+) -> int:
+    """
+    Compute a 0-100 trend score for a keyword based on:
+    - Volume spike (z-score against historical baseline) — 55% weight
+    - Sentiment shift (deviation from recent average) — 45% weight
 
+    Returns 30 if insufficient data (< 3 historical points).
+    """
+    history = _keyword_history.get(keyword, [])
+    if len(history) < 3:
+        return 30  # Not enough data yet
 
-def compute_sentiment_distribution(
-    articles: list[ArticleCard],
-) -> dict[str, int]:
-    """Return a count of articles per sentiment label."""
-    counter: Counter = Counter()
-    for a in articles:
-        if a.sentiment:
-            counter[a.sentiment.label.value] += 1
+    df = pd.DataFrame(history)
+    df["timestamp"] = pd.to_datetime(df["timestamp"])
+    df = df.sort_values("timestamp")
+
+    # ── Volume spike z-score ─────────────────────────────────
+    try:
+        from scipy.stats import zscore
+
+        if len(df) >= 5:
+            counts = df["count"].values
+            z = zscore(np.append(counts, current_count))
+            volume_spike = min(100, max(0, int((z[-1] + 3) / 6 * 100)))
         else:
-            counter["unknown"] += 1
-    return dict(counter)
+            mean = df["count"].mean()
+            volume_spike = min(100, int((current_count / (mean + 1)) * 40))
+    except Exception:
+        volume_spike = 30
+
+    # ── Sentiment shift ──────────────────────────────────────
+    recent_sentiment = df["avg_sentiment"].tail(5).mean()
+    sentiment_shift = abs(current_sentiment - recent_sentiment)
+    sentiment_score = min(100, int(sentiment_shift * 200))
+
+    # ── Composite trend score ────────────────────────────────
+    trend = int(volume_spike * 0.55 + sentiment_score * 0.45)
+    return min(100, max(0, trend))
 
 
-def compute_risk_distribution(
-    articles: list[ArticleCard],
-) -> dict[str, int]:
-    """Return a count of articles per risk level."""
-    counter: Counter = Counter()
-    for a in articles:
-        counter[a.risk_level.value] += 1
-    return dict(counter)
+def get_keyword_history(keyword: str) -> list[dict]:
+    """Return ingestion history for a keyword."""
+    return _keyword_history.get(keyword, [])
 
 
-def generate_summary(
-    articles: list[ArticleCard],
-    trends: list[TrendTopic],
-) -> str:
-    """Generate a short human-readable summary of the current feed state."""
-    if not articles:
-        return "No articles available for analysis."
-
-    parts: list[str] = []
-
-    # Source count
-    source_breakdown = compute_source_breakdown(articles)
-    source_str = ", ".join(f"{k}: {v}" for k, v in source_breakdown.items())
-    parts.append(f"Analysed {len(articles)} articles ({source_str})")
-
-    # Top trends
-    if trends:
-        top_kw = ", ".join(t.keyword for t in trends[:5])
-        parts.append(f"Top trends: {top_kw}")
-
-    # Risk overview
-    risk_dist = compute_risk_distribution(articles)
-    high_risk = risk_dist.get("high", 0) + risk_dist.get("critical", 0)
-    if high_risk:
-        parts.append(f"{high_risk} high/critical risk articles detected")
-
-    # Sentiment
-    sent_dist = compute_sentiment_distribution(articles)
-    neg = sent_dist.get("negative", 0)
-    if neg > len(articles) * 0.3:
-        parts.append("Predominantly negative sentiment")
-
-    return ". ".join(parts) + "."
+def get_all_keywords() -> list[str]:
+    """Return all keywords with recorded history."""
+    return list(_keyword_history.keys())
