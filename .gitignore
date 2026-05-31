@@ -1,66 +1,58 @@
-# ========================
-# VeeTrack .gitignore
-# ========================
+# ═══════════════════════════════════════════════════════
+#  VeeTrack — .gitignore
+#  Single root file covering both frontend and backend.
+# ═══════════════════════════════════════════════════════
 
-# --- Next.js / Frontend ---
-node_modules/
-.next/
-out/
-bun.lock
-package-lock.json
-
-# --- Python / Backend ---
-__pycache__/
-*.py[cod]
-*$py.class
-*.egg-info/
-dist/
-build/
-.venv/
-venv/
-*.egg
-
-# --- Database ---
-db/
-*.db
-*.sqlite
-*.sqlite3
-
-# --- Prisma ---
-prisma/*.db
-
-# --- Environment / Secrets ---
+# ── Environment (NEVER commit secrets) ──────────────────
 .env
 .env.local
 .env.*.local
-*.pem
-*.key
 
-# --- IDE ---
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
+# ── Python ───────────────────────────────────────────────
+veetrack-backend/venv/
+veetrack-backend/__pycache__/
+veetrack-backend/**/__pycache__/
+veetrack-backend/**/*.pyc
+veetrack-backend/**/*.pyo
+*.egg-info/
+.pytest_cache/
 
-# --- OS ---
+# ── Node.js ──────────────────────────────────────────────
+node_modules/
+veetrack-frontend/node_modules/
+
+# ── Next.js ──────────────────────────────────────────────
+veetrack-frontend/.next/
+veetrack-frontend/out/
+veetrack-frontend/.vercel/
+
+# ── Build outputs ────────────────────────────────────────
+dist/
+build/
+
+# ── AI Model caches ──────────────────────────────────────
+.cache/
+*.pt
+*.bin
+~/.cache/huggingface/
+
+# ── Logs ─────────────────────────────────────────────────
+*.log
+/tmp/ollama.log
+logs/
+
+# ── OS & editor ──────────────────────────────────────────
 .DS_Store
 Thumbs.db
-desktop.ini
+.idea/
+.vscode/
+*.swp
+*.swo
 
-# --- Logs ---
-*.log
-dev.log
-npm-debug.log*
+# ── Stray test/debug files ───────────────────────────────
+response.json
+test_report.pdf
 
-# --- Sandbox / CI artifacts ---
-.agent-browser/
-.cache/
-.zscripts/
-veetrack-project.tar.gz
-worklog.md
-TODO
-
-# --- Build artifacts ---
-*.tar.gz
-*.zip
+# ── Docker volumes ───────────────────────────────────────
+redis_data/
+model_cache/

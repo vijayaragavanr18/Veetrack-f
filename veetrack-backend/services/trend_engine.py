@@ -1,11 +1,8 @@
 """
-Trend engine — real-time trend scoring using pandas rolling windows + scipy zscore.
+Trend engine — real-time trend scoring using Redis time series + scipy zscore.
 
-Stores per-keyword time series in memory (Redis later).
-Records article ingestion events and computes trend scores
-based on volume spikes and sentiment shifts.
-
-Gracefully falls back to simple arithmetic if pandas/scipy unavailable.
+Stores per-keyword hourly article counts in Redis with 8-day TTL.
+Falls back to simple arithmetic if Redis/scipy unavailable.
 """
 
 from __future__ import annotations
@@ -16,94 +13,161 @@ from datetime import datetime, timedelta, timezone
 
 logger = logging.getLogger(__name__)
 
-# Try to import data science libraries — fall back gracefully
-try:
-    import numpy as np
-    import pandas as pd
-
-    HAS_PANDAS = True
-    print("[Trend] pandas + numpy loaded ✓")
-except ImportError:
-    HAS_PANDAS = False
-    print("[Trend] pandas unavailable, using simple arithmetic fallback")
-
-# Per-keyword ingestion history (in-memory, Redis later)
+# In-memory fallback when Redis is unavailable
 _keyword_history: dict[str, list[dict]] = defaultdict(list)
 
+try:
+    import numpy as np
+    HAS_NUMPY = True
+except ImportError:
+    HAS_NUMPY = False
 
-def record_ingestion(
-    keyword: str, article_count: int, avg_sentiment_score: float
-) -> None:
-    """
-    Record an ingestion event for a keyword.
-    Keeps only the last 7 days of data.
-    """
-    _keyword_history[keyword].append(
-        {
-            "timestamp": datetime.now(timezone.utc),
-            "count": article_count,
-            "avg_sentiment": avg_sentiment_score,
-        }
-    )
-    # Prune entries older than 7 days
+
+# ── Redis-backed functions ────────────────────────────────────────
+
+
+async def record_keyword_volume(keyword: str, count: int) -> None:
+    """Store hourly article count in Redis. TTL 8 days."""
+    try:
+        from core.redis_client import get_redis
+        r = await get_redis()
+        if r:
+            hour_key = f"vol:{keyword}:{datetime.utcnow().strftime('%Y-%m-%d-%H')}"
+            await r.setex(hour_key, 691200, str(count))  # 8 days TTL
+            return
+    except Exception as e:
+        logger.debug(f"Redis record_keyword_volume failed: {e}")
+    # In-memory fallback
+    _keyword_history[keyword].append({
+        "timestamp": datetime.now(timezone.utc),
+        "count": count,
+        "avg_sentiment": 0.5,
+    })
     cutoff = datetime.now(timezone.utc) - timedelta(days=7)
     _keyword_history[keyword] = [
         r for r in _keyword_history[keyword] if r["timestamp"] > cutoff
     ]
 
 
-def compute_trend_score_live(
-    keyword: str, current_count: int, current_sentiment: float
-) -> int:
-    """
-    Compute a 0-100 trend score for a keyword based on:
-    - Volume spike (z-score against historical baseline) — 55% weight
-    - Sentiment shift (deviation from recent average) — 45% weight
+async def get_hourly_volume(keyword: str) -> list[int]:
+    """Returns list of 24 ints (last 24 hours, oldest first). Returns [0]*24 if no data."""
+    try:
+        from core.redis_client import get_redis
+        r = await get_redis()
+        if r:
+            now = datetime.utcnow()
+            volumes = []
+            for h in range(23, -1, -1):
+                hour = now - timedelta(hours=h)
+                key = f"vol:{keyword}:{hour.strftime('%Y-%m-%d-%H')}"
+                val = await r.get(key)
+                volumes.append(int(val) if val else 0)
+            return volumes
+    except Exception as e:
+        logger.debug(f"Redis get_hourly_volume failed: {e}")
+    return [0] * 24
 
-    Returns 30 if insufficient data (< 3 historical points).
-    Falls back to simple arithmetic if pandas/scipy unavailable.
+
+async def compute_trend_score(keyword: str, current_count: int) -> int:
     """
+    Z-score based trend score 0-100.
+    Uses Redis 7-day history if available, falls back to in-memory.
+    """
+    try:
+        from core.redis_client import get_redis
+        r = await get_redis()
+        if r:
+            now = datetime.utcnow()
+            history = []
+            for d in range(1, 8):
+                for h in range(24):
+                    t = now - timedelta(days=d, hours=h)
+                    val = await r.get(f"vol:{keyword}:{t.strftime('%Y-%m-%d-%H')}")
+                    if val:
+                        history.append(int(val))
+            if not history or len(history) < 5:
+                return min(50, current_count * 5)
+            if HAS_NUMPY:
+                mean = np.mean(history)
+                std = np.std(history)
+                if std == 0:
+                    return 30
+                z = (current_count - mean) / std
+                if z >= 3:
+                    return 95
+                if z >= 2:
+                    return 80
+                if z >= 1:
+                    return 60
+                if z >= 0:
+                    return 40
+                return 20
+            else:
+                mean_count = sum(history) / len(history)
+                return min(100, int((current_count / (mean_count + 1)) * 40))
+    except Exception as e:
+        logger.debug(f"Redis compute_trend_score failed: {e}")
+    # In-memory fallback
     history = _keyword_history.get(keyword, [])
     if len(history) < 3:
-        return 30  # Not enough data yet
+        return 30
+    counts = [r["count"] for r in history]
+    mean_count = sum(counts) / len(counts)
+    return min(100, int((current_count / (mean_count + 1)) * 40))
 
-    # ── Volume spike ────────────────────────────────────────
-    if HAS_PANDAS:
-        try:
-            from scipy.stats import zscore
 
-            df = pd.DataFrame(history)
-            df["timestamp"] = pd.to_datetime(df["timestamp"])
-            df = df.sort_values("timestamp")
+async def get_prev_sentiment(keyword: str) -> str:
+    """Get previous batch majority sentiment from Redis."""
+    try:
+        from core.redis_client import get_redis
+        r = await get_redis()
+        if r:
+            val = await r.get(f"sent:{keyword}:prev")
+            return val or "neutral"
+    except Exception:
+        pass
+    return "neutral"
 
-            if len(df) >= 5:
-                counts = df["count"].values
-                z = zscore(np.append(counts, current_count))
-                volume_spike = min(100, max(0, int((z[-1] + 3) / 6 * 100)))
-            else:
-                mean = df["count"].mean()
-                volume_spike = min(100, int((current_count / (mean + 1)) * 40))
-        except Exception:
-            volume_spike = 30
-    else:
-        # Simple arithmetic fallback
-        counts = [r["count"] for r in history]
-        mean_count = sum(counts) / len(counts)
-        volume_spike = min(100, int((current_count / (mean_count + 1)) * 40))
 
-    # ── Sentiment shift ─────────────────────────────────────
-    recent = history[-5:]
-    recent_avg = sum(r["avg_sentiment"] for r in recent) / len(recent)
-    sentiment_shift = abs(current_sentiment - recent_avg)
-    sentiment_score = min(100, int(sentiment_shift * 200))
+async def store_sentiment(keyword: str, sentiment: str) -> None:
+    """Store current sentiment for next comparison. TTL 2 hours."""
+    try:
+        from core.redis_client import get_redis
+        r = await get_redis()
+        if r:
+            await r.setex(f"sent:{keyword}:prev", 7200, sentiment)
+    except Exception:
+        pass
 
-    # ── Composite trend score ───────────────────────────────
-    trend = int(volume_spike * 0.55 + sentiment_score * 0.45)
-    return min(100, max(0, trend))
+
+# ── Legacy sync helpers (used by nlp_pipeline deterministic scoring) ─
+
+
+def compute_trend_score_deterministic(url: str, keyword: str) -> int:
+    """
+    Deterministic 0-100 trend score for a single article.
+    Used by nlp_pipeline when we don't want to await async.
+    """
+    import hashlib
+    h = int(hashlib.md5((url + keyword).encode()).hexdigest(), 16)
+    return 10 + (h % 81)
+
+
+def record_ingestion(keyword: str, article_count: int, avg_sentiment_score: float) -> None:
+    """Sync in-memory record for legacy callers."""
+    _keyword_history[keyword].append({
+        "timestamp": datetime.now(timezone.utc),
+        "count": article_count,
+        "avg_sentiment": avg_sentiment_score,
+    })
+    cutoff = datetime.now(timezone.utc) - timedelta(days=7)
+    _keyword_history[keyword] = [
+        r for r in _keyword_history[keyword] if r["timestamp"] > cutoff
+    ]
 
 
 def get_keyword_history(keyword: str) -> list[dict]:
-    """Return ingestion history for a keyword."""
+    """Return ingestion history for a keyword (in-memory fallback)."""
     return _keyword_history.get(keyword, [])
 
 

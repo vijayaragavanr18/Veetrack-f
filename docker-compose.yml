@@ -1,0 +1,88 @@
+version: '3.9'
+
+services:
+
+  veetrack-redis:
+    image: redis:7-alpine
+    container_name: veetrack-redis
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru --save 60 1
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  veetrack-backend:
+    build:
+      context: ./veetrack-backend
+      dockerfile: Dockerfile
+    container_name: veetrack-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - REDIS_URL=redis://veetrack-redis:6379/0
+      - OLLAMA_URL=http://host.docker.internal:11434/api/generate
+      - OLLAMA_MODEL=qwen2.5:1.5b
+    env_file:
+      - ./veetrack-backend/.env
+    volumes:
+      - model_cache:/root/.cache
+    depends_on:
+      veetrack-redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  veetrack-frontend:
+    build:
+      context: ./veetrack-frontend
+      dockerfile: Dockerfile
+    container_name: veetrack-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - BACKEND_URL=http://veetrack-backend:8000
+      - NODE_ENV=production
+    depends_on:
+      - veetrack-backend
+    restart: unless-stopped
+
+  veetrack-celery-worker:
+    build:
+      context: ./veetrack-backend
+      dockerfile: Dockerfile
+    container_name: veetrack-celery-worker
+    command: celery -A celery_app worker --loglevel=info --concurrency=4
+    env_file:
+      - ./veetrack-backend/.env
+    environment:
+      - REDIS_URL=redis://veetrack-redis:6379/0
+    volumes:
+      - model_cache:/root/.cache
+    depends_on:
+      veetrack-redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  veetrack-celery-beat:
+    build:
+      context: ./veetrack-backend
+      dockerfile: Dockerfile
+    container_name: veetrack-celery-beat
+    command: celery -A celery_app beat --loglevel=info
+    env_file:
+      - ./veetrack-backend/.env
+    environment:
+      - REDIS_URL=redis://veetrack-redis:6379/0
+    depends_on:
+      veetrack-redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  redis_data:
+  model_cache:

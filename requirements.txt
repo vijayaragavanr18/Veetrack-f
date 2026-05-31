@@ -1,22 +1,47 @@
 # VeeTrack — Python Backend Dependencies
-# Install: pip install -r requirements.txt
+# Single source of truth. Install with:
+#   pip install -r requirements.txt
 
-# Core framework
-fastapi>=0.111.0,<1.0.0
-uvicorn[standard]>=0.30.0,<1.0.0
+# ── Core Framework ───────────────────────────────────────────────
+fastapi>=0.110.0
+uvicorn[standard]>=0.29.0
+httpx>=0.27.0
+pydantic>=2.6.4
+pydantic-settings>=2.2.1
+python-dotenv>=1.0.1
+python-multipart>=0.0.9
 
-# Async HTTP client
-httpx>=0.27.0,<1.0.0
+# ── Data Fetching ────────────────────────────────────────────────
+feedparser>=6.0.11
 
-# Pydantic & settings
-pydantic>=2.7.0,<3.0.0
-pydantic-settings>=2.3.0,<3.0.0
+# ── NLP — Deep Learning ──────────────────────────────────────────
+transformers>=4.40.0
+torch>=2.2.2
+sentence-transformers>=2.7.0
+faiss-cpu>=1.8.0
+spacy>=3.7.4
 
-# Redis (optional — graceful fallback if unavailable)
-redis[hiredis]>=5.0.0,<6.0.0
+# ── NLP — Classical ──────────────────────────────────────────────
+vaderSentiment>=3.3.2
+sumy>=0.11.0
+nltk>=3.8.1
 
-# WebSocket support (included in FastAPI / Starlette)
-websockets>=12.0,<13.0
+# ── Clustering ───────────────────────────────────────────────────
+hdbscan>=0.8.33
 
-# Environment variables
-python-dotenv>=1.0.0,<2.0.0
+# ── Data Science ─────────────────────────────────────────────────
+pandas>=2.2.2
+scipy>=1.13.0
+numpy>=1.26.4
+langdetect>=1.0.9
+
+# ── Background Tasks & Caching ───────────────────────────────────
+celery>=5.3.6
+redis>=5.0.3
+apscheduler>=3.10.4
+
+# ── Report Generation ────────────────────────────────────────────
+reportlab>=4.1.0
+
+# ── Utilities ────────────────────────────────────────────────────
+python-dateutil>=2.9.0

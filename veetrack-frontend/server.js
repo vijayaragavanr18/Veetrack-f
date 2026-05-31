@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 // Standalone Next.js server that survives process reaping
 const { createServer } = require('http');
 const { parse } = require('url');

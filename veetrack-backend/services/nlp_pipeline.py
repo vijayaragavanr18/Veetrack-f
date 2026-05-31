@@ -46,14 +46,22 @@ except Exception as e:
     _sentiment_model = None
     SENTIMENT_BACKEND = "vader"
 
-# spaCy for NER (primary)
-# Falls back to regex if spaCy not available
+# spaCy for NER (primary: transformer model, fallback: sm, then regex)
 try:
     import spacy
-
-    _nlp = spacy.load("en_core_web_sm")
-    NER_BACKEND = "spacy"
-    print("[NLP] spaCy en_core_web_sm loaded ✓")
+    try:
+        _nlp = spacy.load("en_core_web_trf")
+        NER_BACKEND = "spacy"
+        print("[NLP] spaCy en_core_web_trf loaded ✓")
+    except OSError:
+        try:
+            _nlp = spacy.load("en_core_web_sm")
+            NER_BACKEND = "spacy"
+            print("[NLP] spaCy en_core_web_sm loaded ✓ (run: python -m spacy download en_core_web_trf for better accuracy)")
+        except OSError:
+            _nlp = None
+            NER_BACKEND = "regex"
+            print("[NLP] No spaCy model found, using regex NER fallback")
 except Exception as e:
     print(f"[NLP] spaCy failed ({e}), using regex NER fallback")
     _nlp = None

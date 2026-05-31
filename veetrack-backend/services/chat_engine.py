@@ -1,15 +1,14 @@
 """
-Article chat engine — FAISS + MiniLM for retrieval, Ollama/Qwen for generation.
+Article chat engine — FAISS + MiniLM for retrieval, Ollama/Qwen2.5:1.5b for generation.
 
-Sessions are stored in-memory (replace with Redis later).
-Each session indexes article chunks into a FAISS index for
-semantic retrieval, then uses Ollama (qwen2.5:1.5b) for generation.
+Sessions are stored in Redis (30-min TTL). FAISS indices are kept in-memory
+(keyed by session_id) since they cannot be serialized to Redis directly.
 Falls back to keyword search + context extraction if models unavailable.
 """
 
 from __future__ import annotations
 
-import asyncio
+import json
 import logging
 from typing import Optional
 
@@ -17,8 +16,11 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-# In-memory session store (replace with Redis later)
-_sessions: dict[str, dict] = {}
+CHAT_SESSION_TTL = 1800  # 30 minutes
+OLLAMA_MODEL = "qwen2.5:1.5b"  # Always use 1.5b parameter model
+
+# In-memory FAISS index store (complement to Redis session metadata)
+_faiss_indexes: dict[str, dict] = {}
 
 
 def _chunk_text(text: str, size: int = 256, overlap: int = 50) -> list[str]:
@@ -30,7 +32,48 @@ def _chunk_text(text: str, size: int = 256, overlap: int = 50) -> list[str]:
         chunk = " ".join(words[i : i + size])
         chunks.append(chunk)
         i += size - overlap
-    return chunks
+    return chunks or [text[:500]]
+
+
+# ── Redis session helpers ─────────────────────────────────────────
+
+
+async def _save_session_meta(session_id: str, data: dict) -> None:
+    """Save session metadata (title, chunks) to Redis."""
+    try:
+        from core.redis_client import get_redis
+        r = await get_redis()
+        if r:
+            await r.setex(f"chat:{session_id}", CHAT_SESSION_TTL, json.dumps(data))
+    except Exception as e:
+        logger.debug(f"Redis chat save failed: {e}")
+
+
+async def _get_session_meta(session_id: str) -> dict | None:
+    """Retrieve session metadata from Redis."""
+    try:
+        from core.redis_client import get_redis
+        r = await get_redis()
+        if r:
+            val = await r.get(f"chat:{session_id}")
+            return json.loads(val) if val else None
+    except Exception:
+        pass
+    return None
+
+
+async def _delete_session_meta(session_id: str) -> None:
+    """Delete session metadata from Redis."""
+    try:
+        from core.redis_client import get_redis
+        r = await get_redis()
+        if r:
+            await r.delete(f"chat:{session_id}")
+    except Exception:
+        pass
+
+
+# ── Session Lifecycle ─────────────────────────────────────────────
 
 
 async def start_session(
@@ -42,59 +85,56 @@ async def start_session(
     Falls back to keyword-only search if FAISS/MiniLM unavailable.
     """
     chunks = _chunk_text(article_text)
-    index_data: dict = {"chunks": chunks, "title": article_title}
+    meta = {"chunks": chunks, "title": article_title}
 
     try:
         from sentence_transformers import SentenceTransformer
-
         import faiss
         import numpy as np
 
         # Re-use the module-level model from nlp_pipeline if available
         try:
             from services.nlp_pipeline import _embed_model, EMBED_BACKEND
-
-            if EMBED_BACKEND != "none" and _embed_model is not None:
-                model = _embed_model
-            else:
-                model = SentenceTransformer("all-MiniLM-L6-v2")
+            model = _embed_model if (EMBED_BACKEND != "none" and _embed_model is not None) else SentenceTransformer("all-MiniLM-L6-v2")
         except ImportError:
             model = SentenceTransformer("all-MiniLM-L6-v2")
+
         embeddings = model.encode(chunks).astype("float32")
         index = faiss.IndexFlatL2(embeddings.shape[1])
         index.add(embeddings)
-        index_data["index"] = index
-        index_data["model"] = model
-        index_data["embeddings"] = embeddings
+
+        # Store FAISS index in memory (can't serialize to Redis)
+        _faiss_indexes[session_id] = {"index": index, "model": model, "embeddings": embeddings}
         logger.info("[Chat] FAISS index built for session %s (%d chunks)", session_id, len(chunks))
     except Exception as e:
         logger.info("[Chat] FAISS unavailable for session %s (%s), using keyword fallback", session_id, e)
-        pass  # Will fall back to keyword search
 
-    _sessions[session_id] = index_data
+    # Save metadata to Redis
+    await _save_session_meta(session_id, meta)
 
 
 async def ask_question(session_id: str, question: str) -> str:
     """
-    Answer a question about an article using RAG (FAISS + Ollama).
+    Answer a question about an article using RAG (FAISS + Ollama qwen2.5:1.5b).
     Falls back to keyword search + context extraction.
     """
-    session = _sessions.get(session_id)
-    if not session:
+    # Get session metadata (from Redis or in-memory fallback)
+    meta = await _get_session_meta(session_id)
+    if not meta:
         return "Session not found or expired. Please reopen the article."
 
-    chunks = session.get("chunks", [])
-    title = session.get("title", "this article")
+    chunks = meta.get("chunks", [])
+    title = meta.get("title", "this article")
+    faiss_data = _faiss_indexes.get(session_id)
 
     # ── Retrieve relevant chunks ─────────────────────────────
     context_chunks: list[str] = []
 
-    if "index" in session and "model" in session:
+    if faiss_data and "index" in faiss_data:
         try:
             import numpy as np
-
-            q_embed = session["model"].encode([question]).astype("float32")
-            _, indices = session["index"].search(q_embed, k=min(3, len(chunks)))
+            q_embed = faiss_data["model"].encode([question]).astype("float32")
+            _, indices = faiss_data["index"].search(q_embed, k=min(3, len(chunks)))
             context_chunks = [chunks[i] for i in indices[0] if i < len(chunks)]
         except Exception:
             context_chunks = chunks[:3]
@@ -107,7 +147,7 @@ async def ask_question(session_id: str, question: str) -> str:
 
     context = "\n\n".join(context_chunks)
 
-    # ── Generate answer via Ollama (local LLM) ──────────────
+    # ── Generate answer via Ollama (qwen2.5:1.5b) ──────────
     prompt = f"""You are answering questions about a news article.
 Article title: {title}
 
@@ -124,21 +164,27 @@ IMPORTANT RULES:
 Question: {question}
 Answer:"""
 
+    import os
+    ollama_url = os.getenv("OLLAMA_URL", "http://localhost:11434/api/generate")
+    ollama_model = os.getenv("OLLAMA_MODEL", OLLAMA_MODEL)
+
     try:
-        async with httpx.AsyncClient(timeout=15) as client:
+        async with httpx.AsyncClient(timeout=20) as client:
             resp = await client.post(
-                "http://localhost:11434/api/generate",
+                ollama_url,
                 json={
-                    "model": "qwen2.5:1.5b",
+                    "model": ollama_model,
                     "prompt": prompt,
                     "stream": False,
                     "options": {"temperature": 0.1, "num_predict": 200},
                 },
             )
             if resp.status_code == 200:
-                return resp.json().get("response", "").strip()
-    except Exception:
-        pass
+                answer = resp.json().get("response", "").strip()
+                if answer:
+                    return answer
+    except Exception as e:
+        logger.debug(f"[Chat] Ollama call failed ({e}), using context fallback")
 
     # ── Final fallback: extract answer from context directly ──
     if context_chunks:
@@ -148,4 +194,5 @@ Answer:"""
 
 async def end_session(session_id: str) -> None:
     """End a chat session and free memory."""
-    _sessions.pop(session_id, None)
+    _faiss_indexes.pop(session_id, None)
+    await _delete_session_meta(session_id)

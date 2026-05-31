@@ -1,9 +1,8 @@
 """
 Alerts router — /api/alerts SSE endpoint.
 
-Streams real-time alerts using Server-Sent Events.
-Evaluates alert conditions every 30 seconds by fetching
-recent articles and checking risk/sentiment thresholds.
+Subscribes to Redis pub/sub 'veetrack:alerts' channel.
+Falls back to polling-based evaluation if Redis unavailable.
 """
 
 from __future__ import annotations
@@ -15,88 +14,81 @@ import logging
 from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
 
-from services.ingestion import fetch_all_sources
-from services.nlp_pipeline import process_articles
-
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
 
-async def evaluate_alerts(keywords: list[str]) -> list[dict]:
-    """
-    Fetch recent articles for keywords and evaluate alert conditions.
-    Returns a list of alert dicts.
-    """
-    alerts: list[dict] = []
-    if not keywords:
-        return alerts
-
-    try:
-        articles = await fetch_all_sources(keywords, days=1)
-        processed = await process_articles(articles)
-    except Exception as e:
-        logger.warning("[Alerts] Evaluation failed: %s", e)
-        return alerts
-
-    for article in processed:
-        risk = article.get("risk_score", 0)
-        sentiment = article.get("sentiment", "neutral")
-        keyword = article.get("keyword", "")
-
-        if risk >= 70 and sentiment == "negative":
-            alerts.append(
-                {
-                    "type": "pr_risk",
-                    "priority": "critical",
-                    "keyword": keyword,
-                    "headline": article.get("title", ""),
-                    "risk_score": risk,
-                    "message": f"High risk negative coverage detected for {keyword}",
-                    "url": article.get("url", ""),
-                }
-            )
-        elif risk >= 50:
-            alerts.append(
-                {
-                    "type": "volume_spike",
-                    "priority": "high",
-                    "keyword": keyword,
-                    "headline": article.get("title", ""),
-                    "risk_score": risk,
-                    "message": f"Elevated coverage activity for {keyword}",
-                    "url": article.get("url", ""),
-                }
-            )
-
-    return alerts[:5]
-
-
 @router.get("/api/alerts")
-async def alert_stream(request: Request, keywords: str = ""):
+async def stream_alerts(request: Request, keywords: str = ""):
     """
-    SSE endpoint for real-time alerts.
-    Evaluates every 30 seconds and pushes alerts to connected clients.
+    SSE endpoint. Subscribes to Redis pub/sub 'veetrack:alerts'.
+    Falls back to direct polling if Redis unavailable.
     """
     keyword_list = [k.strip() for k in keywords.split(",") if k.strip()]
 
-    async def event_generator():
+    async def redis_event_generator():
+        """Stream alerts from Redis pub/sub."""
+        try:
+            from core.redis_client import get_redis
+            r = await get_redis()
+            if not r:
+                raise RuntimeError("Redis unavailable")
+            pubsub = r.pubsub()
+            await pubsub.subscribe("veetrack:alerts")
+            yield 'data: {"type":"connected","message":"Alert stream ready (Redis)"}\n\n'
+            while True:
+                if await request.is_disconnected():
+                    break
+                try:
+                    message = await asyncio.wait_for(
+                        pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0),
+                        timeout=30.0,
+                    )
+                    if message and message.get("type") == "message":
+                        yield f"data: {message['data']}\n\n"
+                    else:
+                        yield ": heartbeat\n\n"
+                except asyncio.TimeoutError:
+                    yield ": heartbeat\n\n"
+        except GeneratorExit:
+            return
+        except Exception as e:
+            logger.warning(f"Redis SSE failed, switching to polling: {e}")
+            async for event in polling_event_generator():
+                yield event
+
+    async def polling_event_generator():
+        """Fallback: poll ingestion + alert engine every 30 seconds."""
+        from services.ingestion import fetch_all_sources
+        from services.nlp_pipeline import process_articles
+        from services.alert_engine import evaluate_real_thresholds
+
+        yield 'data: {"type":"connected","message":"Alert stream ready (polling)"}\n\n'
         while True:
             if await request.is_disconnected():
                 break
             try:
-                alerts = await evaluate_alerts(keyword_list)
-                if alerts:
-                    for alert in alerts:
-                        yield f"data: {json.dumps(alert)}\n\n"
+                if keyword_list:
+                    articles = await fetch_all_sources(keyword_list, days=1)
+                    processed = await process_articles(articles)
+                    all_alerts = []
+                    for kw in keyword_list:
+                        kw_articles = [a for a in processed if a.get("keyword") == kw]
+                        all_alerts.extend(await evaluate_real_thresholds(kw, kw_articles))
+                    if all_alerts:
+                        for alert in all_alerts[:5]:
+                            yield f"data: {json.dumps(alert)}\n\n"
+                    else:
+                        yield ': heartbeat\n\n'
                 else:
-                    yield f"data: {json.dumps({'type': 'heartbeat'})}\n\n"
+                    yield ': heartbeat\n\n'
             except Exception as e:
-                yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+                yield f'data: {{"type":"error","message":"{str(e)}"}}\n\n'
             await asyncio.sleep(30)
 
     return StreamingResponse(
-        event_generator(),
+        redis_event_generator(),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

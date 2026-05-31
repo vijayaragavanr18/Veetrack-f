@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { Article } from "@/lib/data/articles";
 
-export type ScreenType = "input" | "feed" | "article" | "intelligence";
+export type ScreenType = "input" | "feed" | "article" | "intelligence" | "clients";
 
 /* ─── Intelligence Report Types ─────────────────── */
 
@@ -123,7 +123,7 @@ export const useKeywordStore = create<KeywordState>()(
           const res = await fetch("/api/feed", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ keyword, max_results: 30 }),
+            body: JSON.stringify({ keywords: [keyword], limit: 30 }),
           });
 
           if (!res.ok) {
@@ -132,7 +132,7 @@ export const useKeywordStore = create<KeywordState>()(
 
           const data = await res.json();
           set({
-            articles: data.articles ?? [],
+            articles: Array.isArray(data) ? data : (data.articles ?? []),
             isLoading: false,
             fetchError: null,
           });
@@ -150,13 +150,14 @@ export const useKeywordStore = create<KeywordState>()(
         set({ intelligenceReport: report }),
 
       runIntelligencePipeline: async (client = "ZEE5") => {
+        const keyword = get().activeKeyword || client;
         set({ isIntelligenceLoading: true, intelligenceError: null, intelligenceReport: null });
 
         try {
           const res = await fetch("/api/intelligence", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ client }),
+            body: JSON.stringify({ keywords: [keyword], days: 5 }),
           });
 
           if (!res.ok) {
@@ -164,12 +165,14 @@ export const useKeywordStore = create<KeywordState>()(
           }
 
           const data = await res.json();
-          if (!data.success || !data.report) {
+          if (!data || data.error) {
             throw new Error(data.error || "Intelligence pipeline failed");
           }
 
+          // The backend returns the report at the root, frontend expects it directly or in data.report
+          // We'll just pass data directly since it matches most fields
           set({
-            intelligenceReport: data.report,
+            intelligenceReport: data.report || data,
             isIntelligenceLoading: false,
             intelligenceError: null,
           });
