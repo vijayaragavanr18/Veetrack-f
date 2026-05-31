@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "bun --cwd veetrack-frontend run dev",
     "dev:frontend": "cd veetrack-frontend && bun run dev",
-    "dev:backend": "cd veetrack-backend && python3 -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload",
+    "dev:backend": "cd veetrack-backend && bash start.sh",
+    "dev:all": "concurrently \"bun run dev\" \"bun run dev:backend\"",
     "install:frontend": "cd veetrack-frontend && bun install",
     "install:backend": "cd veetrack-backend && pip install -r requirements.txt",
     "build": "cd veetrack-frontend && bun run build",
