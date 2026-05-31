@@ -104,39 +104,39 @@ async def _fetch_wikidata(keyword: str) -> dict | None:
                 search_url,
                 headers={"User-Agent": "VeeTrack/1.0 (media-intelligence)"},
             )
-        search_data = search_resp.json()
-        results = search_data.get("search", [])
-        if not results:
-            return None
+            search_data = search_resp.json()
+            results = search_data.get("search", [])
+            if not results:
+                return None
 
-        top = results[0]
-        entity_id = top.get("id", "")
+            top = results[0]
+            entity_id = top.get("id", "")
 
-        # Get entity details for facts
-        detail_url = (
-            f"https://www.wikidata.org/w/api.php"
-            f"?action=wbgetentities&ids={entity_id}"
-            f"&props=labels|descriptions&languages=en&format=json"
-        )
-        detail_resp = await client.get(
-            detail_url,
-            headers={"User-Agent": "VeeTrack/1.0 (media-intelligence)"},
-        )
-        detail_data = detail_resp.json()
-        entity = detail_data.get("entities", {}).get(entity_id, {})
-        description = ""
-        try:
-            description = entity.get("descriptions", {}).get("en", {}).get("value", "")
-        except Exception:
-            pass
+            # Get entity details for facts (same client — still open)
+            detail_url = (
+                f"https://www.wikidata.org/w/api.php"
+                f"?action=wbgetentities&ids={entity_id}"
+                f"&props=labels|descriptions&languages=en&format=json"
+            )
+            detail_resp = await client.get(
+                detail_url,
+                headers={"User-Agent": "VeeTrack/1.0 (media-intelligence)"},
+            )
+            detail_data = detail_resp.json()
+            entity = detail_data.get("entities", {}).get(entity_id, {})
+            description = ""
+            try:
+                description = entity.get("descriptions", {}).get("en", {}).get("value", "")
+            except Exception:
+                pass
 
-        return {
-            "label": top.get("label", keyword),
-            "description": description or top.get("description", ""),
-            "entityId": entity_id,
-            "facts": {},
-            "url": f"https://www.wikidata.org/wiki/{entity_id}",
-        }
+            return {
+                "label": top.get("label", keyword),
+                "description": description or top.get("description", ""),
+                "entityId": entity_id,
+                "facts": {},
+                "url": f"https://www.wikidata.org/wiki/{entity_id}",
+            }
     except Exception as e:
         logger.warning("[Reactions/Wikidata] Error: %s", e)
         return None

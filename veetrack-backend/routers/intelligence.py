@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 from collections import Counter
+from datetime import datetime, timezone
 
 from fastapi import APIRouter
 from pydantic import BaseModel
@@ -129,7 +130,7 @@ async def get_intelligence(req: IntelligenceRequest):
 
     return {
         "keyword": keyword,
-        "generatedAt": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),
+        "generatedAt": datetime.now(timezone.utc).isoformat(),
         "articles": articles,
         "summary": {
             "totalFound": len(articles),

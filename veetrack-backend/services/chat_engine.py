@@ -50,7 +50,16 @@ async def start_session(
         import faiss
         import numpy as np
 
-        model = SentenceTransformer("all-MiniLM-L6-v2")
+        # Re-use the module-level model from nlp_pipeline if available
+        try:
+            from services.nlp_pipeline import _embed_model, EMBED_BACKEND
+
+            if EMBED_BACKEND != "none" and _embed_model is not None:
+                model = _embed_model
+            else:
+                model = SentenceTransformer("all-MiniLM-L6-v2")
+        except ImportError:
+            model = SentenceTransformer("all-MiniLM-L6-v2")
         embeddings = model.encode(chunks).astype("float32")
         index = faiss.IndexFlatL2(embeddings.shape[1])
         index.add(embeddings)
