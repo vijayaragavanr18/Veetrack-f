@@ -35,15 +35,20 @@ def init_models():
             print(f"[Models] RoBERTa failed to load: {e}")
             raise e
 
-    # 2. NER Model (spaCy TRF)
+    # 2. NER Model (spaCy)
     if _nlp is None:
+        import spacy
         try:
-            import spacy
             _nlp = spacy.load("en_core_web_trf")
             print("[Models] spaCy en_core_web_trf loaded ✓")
         except Exception as e:
-            print(f"[Models] spaCy en_core_web_trf failed to load: {e}")
-            raise e
+            print(f"[Models] spaCy en_core_web_trf failed to load, falling back to en_core_web_sm: {e}")
+            try:
+                _nlp = spacy.load("en_core_web_sm")
+                print("[Models] spaCy en_core_web_sm loaded ✓")
+            except Exception as e2:
+                print(f"[Models] spaCy en_core_web_sm failed to load: {e2}")
+                raise e2
 
     # 3. Embeddings Model (all-MiniLM-L6-v2)
     if _embed_model is None:

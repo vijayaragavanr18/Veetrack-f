@@ -118,6 +118,85 @@ async def fetch_google_news_rss(keyword: str, days: int = 5) -> list[dict]:
         return []
 
 
+# ── Source 1.5: Indian Trade RSS ────────────────────────────────
+
+INDIA_TRADE_RSS_FEEDS = [
+    # OTT/Media trade press — most important for Vee Tech clients
+    "https://www.exchange4media.com/rss/rss.aspx",
+    "https://www.indiantelevision.com/rss.xml",
+    "https://www.afaqs.com/rss/news",
+    "https://www.bestmediainfo.com/feed",
+
+    # General business — high authority
+    "https://economictimes.indiatimes.com/rssfeedstopstories.cms",
+    "https://www.livemint.com/rss/companies",
+    "https://www.businessstandard.com/rss/latest.rss",
+    "https://www.thehindu.com/business/feeder/default.rss",
+
+    # Tech
+    "https://inc42.com/feed/",
+    "https://entrackr.com/feed/",
+]
+
+async def fetch_trade_rss(keyword: str, days: int = 5) -> list[dict]:
+    """Fetch from static Indian trade RSS feeds and filter by keyword."""
+    if not HAS_FEEDPARSER:
+        return []
+
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+    articles = []
+    kw_lower = keyword.lower()
+
+    async def _fetch_feed(url: str):
+        try:
+            async with _get_client(timeout=10, follow_redirects=True) as client:
+                resp = await client.get(url)
+            feed = feedparser.parse(resp.text)
+            feed_articles = []
+            for entry in feed.entries:
+                try:
+                    published = datetime(
+                        *entry.published_parsed[:6], tzinfo=timezone.utc
+                    )
+                    if published < since:
+                        continue
+                except (AttributeError, TypeError):
+                    published = None
+
+                title = entry.get("title", "")
+                summary = _strip_html(entry.get("summary", ""))
+                
+                if kw_lower not in title.lower() and kw_lower not in summary.lower():
+                    continue
+
+                source_title = feed.feed.get("title", "Trade Press")
+                
+                feed_articles.append(
+                    {
+                        "title": title,
+                        "url": entry.get("link", ""),
+                        "published_at": (
+                            published.isoformat() if published else datetime.now(timezone.utc).isoformat()
+                        ),
+                        "source": source_title,
+                        "body_text": summary,
+                        "origin": "trade_rss",
+                    }
+                )
+            return feed_articles
+        except Exception as e:
+            logger.debug("[Trade RSS] Error for feed %s: %s", url, e)
+            return []
+
+    tasks = [_fetch_feed(url) for url in INDIA_TRADE_RSS_FEEDS]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    for res in results:
+        if isinstance(res, list):
+            articles.extend(res)
+            
+    return articles
+
+
 # ── Source 2: GDELT 2.0 ────────────────────────────────────────
 
 
@@ -298,6 +377,7 @@ async def fetch_all_sources(
     for keyword in keywords:
         results = await asyncio.gather(
             fetch_google_news_rss(keyword, days),
+            fetch_trade_rss(keyword, days),
             fetch_gdelt(keyword),
             fetch_hackernews(keyword, days),
             fetch_mastodon(keyword),

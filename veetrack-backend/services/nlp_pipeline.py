@@ -132,30 +132,104 @@ def summarize(text: str, sentences: int = 2) -> str:
 
 
 # ────────────────────────────────────────────────────────────────
-# SECTION 5: Deterministic Scoring
+# SECTION 5: Real Signal-Based Scoring
 # ────────────────────────────────────────────────────────────────
 
+# Indian media authority tiers — used for risk and trend scoring
+# Tier 1: National business/news, highest PR impact
+TIER_1_SOURCES = [
+    'economictimes', 'thehindu', 'hindustantimes', 'ndtv',
+    'livemint', 'businessstandard', 'financialexpress',
+    'timesofindia', 'indianexpress', 'moneycontrol',
+    'reuters', 'bloomberg', 'ptinews', 'ians'
+]
 
-def _hash_score(seed: str, min_val: int, max_val: int) -> int:
-    """Deterministic score — same input always gives same output."""
-    h = int(hashlib.md5(seed.encode()).hexdigest(), 16)
-    return min_val + (h % (max_val - min_val + 1))
+# Tier 2: Trade/Industry specific — high impact for OTT clients
+TIER_2_SOURCES = [
+    'exchange4media', 'indiantelevision', 'afaqs',
+    'bestmediainfo', 'medianews4u', 'broadcastpro',
+    'yourstory', 'inc42', 'entrackr', 'thetechportal'
+]
+
+# Tier 3: Regional language publications
+TIER_3_SOURCES = [
+    'eenadu', 'anandabazar', 'mathrubhumi', 'dinamalar',
+    'lokmat', 'loksatta', 'pudhari', 'vijaykarnataka'
+]
+
+def get_source_tier(source_url: str) -> int:
+    s = source_url.lower()
+    if any(t in s for t in TIER_1_SOURCES): return 1
+    if any(t in s for t in TIER_2_SOURCES): return 2
+    if any(t in s for t in TIER_3_SOURCES): return 3
+    return 4  # Unknown/blog
 
 
-def compute_risk_score(text: str, keyword: str, sentiment: str) -> int:
-    """
-    0–100 risk score. Deterministic + sentiment-weighted.
-    """
-    base = _hash_score(text[:80] + keyword, 10, 60)
-    sentiment_boost = {"negative": 30, "neutral": 5, "positive": 0}
-    return min(100, base + sentiment_boost.get(sentiment, 0))
+def compute_risk_score(text: str, keyword: str, sentiment: str,
+                       source: str, entities: list) -> int:
+    score = 0
+
+    # Sentiment component (0-40 points)
+    if sentiment == "negative": score += 40
+    elif sentiment == "neutral": score += 10
+    else: score += 0
+
+    # Source authority (0-30 points)
+    tier = get_source_tier(source)
+    if tier == 1: score += 30
+    elif tier == 2: score += 15
+    elif tier == 3: score += 10
+    else: score += 5
+
+    # Negative keyword signals in headline (0-20 points)
+    NEGATIVE_SIGNALS = ['sue','scam','fraud','fine','ban','probe',
+                        'crisis','hack','leak','controversy','violation',
+                        'arrested','illegal','penalty','shutdown']
+    text_lower = text.lower()
+    hits = sum(1 for w in NEGATIVE_SIGNALS if w in text_lower)
+    score += min(hits * 7, 20)
+
+    # Entity richness — more named entities = more newsworthy (0-10 points)
+    score += min(len(entities) * 2, 10)
+
+    return min(score, 100)
 
 
-def compute_trend_score(url: str, keyword: str) -> int:
-    """
-    0–100 trend score. Deterministic per article+keyword.
-    """
-    return _hash_score(url + keyword, 10, 90)
+def compute_trend_score(keyword: str, source: str,
+                        published_at: str, hourly_volume: list) -> int:
+    score = 0
+
+    # Recency (0-40 points) — articles from last 2 hours score highest
+    try:
+        from datetime import datetime, timezone
+        pub = datetime.fromisoformat(published_at.replace('Z','+00:00'))
+        age_hours = (datetime.now(timezone.utc) - pub).total_seconds() / 3600
+        if age_hours < 2:   score += 40
+        elif age_hours < 6: score += 30
+        elif age_hours < 12: score += 20
+        elif age_hours < 24: score += 10
+    except: score += 15
+
+    # Volume spike (0-40 points)
+    if len(hourly_volume) >= 4:
+        import numpy as np
+        recent = sum(hourly_volume[-2:]) / 2
+        baseline = sum(hourly_volume[:-2]) / max(len(hourly_volume)-2, 1)
+        if baseline > 0:
+            ratio = recent / baseline
+            if ratio >= 3: score += 40
+            elif ratio >= 2: score += 30
+            elif ratio >= 1.5: score += 20
+            elif ratio >= 1: score += 10
+
+    # Source authority (0-20 points)
+    tier = get_source_tier(source)
+    if tier == 1: score += 20
+    elif tier == 2: score += 10
+    elif tier == 3: score += 5
+    else: score += 0
+
+    return min(score, 100)
 
 
 # ────────────────────────────────────────────────────────────────
@@ -294,6 +368,14 @@ async def process_articles(articles: list[dict]) -> list[dict]:
         except Exception:
             sentiment, sentiment_score = "neutral", 0.5
 
+        # Compound keyword check
+        compound = article.get('compound_filter')
+        if compound:
+            combined = (article.get('title', '') + ' ' +
+                        article.get('body_text', '')).lower()
+            if compound.lower() not in combined:
+                continue  # Skip — keyword present but compound context missing
+
         try:
             entities = extract_entities(text)
         except Exception:
@@ -304,8 +386,12 @@ async def process_articles(articles: list[dict]) -> list[dict]:
         except Exception:
             summary = text[:200]
 
-        risk = compute_risk_score(text, keyword, sentiment)
-        trend = compute_trend_score(url, keyword)
+        source = article.get("source", url)
+        published_at = article.get("published_at", "")
+        hourly_volume = article.get("hourly_volume", [])
+
+        risk = compute_risk_score(text, keyword, sentiment, source, entities)
+        trend = compute_trend_score(keyword, source, published_at, hourly_volume)
         why = why_it_matters(keyword, sentiment, entities)
         action = suggested_action(risk, sentiment)
 
@@ -344,5 +430,30 @@ async def process_articles(articles: list[dict]) -> list[dict]:
                 "trend_score": trend,
             }
         )
+
+    try:
+        from datasketch import MinHash, MinHashLSH
+
+        def deduplicate_by_content(articles: list) -> list:
+            lsh = MinHashLSH(threshold=0.8, num_perm=64)
+            unique = []
+            for i, article in enumerate(articles):
+                text = (article.get('title','') + ' ' +
+                        article.get('body_text',''))[:300]
+                m = MinHash(num_perm=64)
+                for word in text.lower().split():
+                    m.update(word.encode('utf-8'))
+                try:
+                    result = lsh.query(m)
+                    if not result:
+                        lsh.insert(f"art_{i}", m)
+                        unique.append(article)
+                    # else: near-duplicate, skip
+                except: unique.append(article)
+            return unique
+
+        processed = deduplicate_by_content(processed)
+    except Exception as e:
+        print(f"[NLP] Deduplication failed ({e}), skipping")
 
     return cluster_articles(processed)
