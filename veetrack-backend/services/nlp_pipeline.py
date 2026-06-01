@@ -391,13 +391,14 @@ def cluster_articles(articles: list[dict]) -> list[dict]:
         labels = clusterer.fit_predict(embeddings)
 
         for article, label in zip(articles, labels):
-            article["cluster_id"] = (
-                f"cluster_{label}" if label >= 0 else f"single_{id(article)}"
-            )
+            c_id = f"cluster_{label}" if label >= 0 else f"single_{id(article)}"
+            article["cluster_id"] = c_id
+            article["clusterId"] = c_id
     except Exception as e:
         print(f"[NLP] Clustering failed ({e}), skipping")
         for i, a in enumerate(articles):
             a["cluster_id"] = f"single_{i}"
+            a["clusterId"] = f"single_{i}"
 
     return articles
 
@@ -445,14 +446,27 @@ async def process_articles(articles: list[dict]) -> list[dict]:
         processed.append(
             {
                 **article,
-                "sentiment": sentiment,
-                "sentiment_score": sentiment_score,
-                "entities": entities,
+                "id": article.get("url", str(id(article))),
+                "headline": article.get("title", "Untitled"),
+                "sourceUrl": article.get("url", ""),
+                "timestamp": article.get("published_at", "Just now"),
+                "publishedAt": article.get("published_at", ""),
+                "thumbnail": "https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=800&q=80",
+                "category": "Technology",
+                "sentiment": {
+                    "label": sentiment,
+                    "score": sentiment_score
+                },
+                "riskScore": risk,
+                "trendScore": trend,
+                "entities": [{"text": e["text"], "type": e.get("label", "Unknown")} for e in entities],
                 "summary": summary,
+                "whyItMatters": why,
+                "suggestedAction": action,
+                "relatedCount": 0,
+                # Keep internal snake_case
                 "risk_score": risk,
                 "trend_score": trend,
-                "why_it_matters": why,
-                "suggested_action": action,
             }
         )
 

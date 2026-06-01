@@ -22,7 +22,8 @@ interface KeyPointsTabProps {
 
 /* ─── Helpers ─────────────────────────────────────────── */
 
-function getArticleType(timestamp: string): { label: string; color: string } {
+function getArticleType(timestamp: string | undefined | null): { label: string; color: string } {
+  if (!timestamp) return { label: "📊 Analysis", color: "text-[#6B7280]" };
   const lower = timestamp.toLowerCase();
   if (lower.includes("just now") || lower.includes("min ago")) {
     return { label: "🔴 Breaking", color: "text-[#EF4444]" };

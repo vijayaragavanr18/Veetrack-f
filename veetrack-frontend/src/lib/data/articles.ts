@@ -208,16 +208,24 @@ export function generateSparkline(trendScore: number): number[] {
 
 /** Check if article is technology-related (for showing HN section) */
 export function isTechnologyArticle(article: Article): boolean {
+  if (!article) return false;
+
   const techSources = ["hacker news", "techcrunch", "arstechnica", "wired", "the verge"];
   const techKeywords = ["ai", "ml", "software", "programming", "api", "cloud", "cybersecurity", "semiconductor", "chip", "gpu"];
 
-  const sourceLower = article.source.toLowerCase();
-  if (techSources.some((s) => sourceLower.includes(s))) return true;
+  if (article.source) {
+    const sourceLower = article.source.toLowerCase();
+    if (techSources.some((s) => sourceLower.includes(s))) return true;
+  }
 
-  const headlineLower = article.headline.toLowerCase();
-  if (techKeywords.some((k) => headlineLower.includes(k))) return true;
+  if (article.headline) {
+    const headlineLower = article.headline.toLowerCase();
+    if (techKeywords.some((k) => headlineLower.includes(k))) return true;
+  }
 
-  if (article.entities.some((e) => techKeywords.some((k) => e.text.toLowerCase().includes(k)))) return true;
+  if (article.entities && Array.isArray(article.entities)) {
+    if (article.entities.some((e) => e?.text && techKeywords.some((k) => e.text.toLowerCase().includes(k)))) return true;
+  }
 
   return false;
 }
