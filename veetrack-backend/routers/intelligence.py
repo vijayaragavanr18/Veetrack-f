@@ -38,30 +38,72 @@ def _determine_risk_level(avg_risk: float) -> str:
     return "low"
 
 
-def _generate_executive_brief(keyword: str, total: int, source_count: int,
-                               dominant: str, counts: dict, risk_level: str) -> str:
-    if total == 0:
-        return (f'No significant coverage found for "{keyword}" in the requested period. '
-                f'Media presence is low. Consider proactive content seeding to establish a baseline.')
-    sent_desc = {
-        "positive": "predominantly positive, indicating favorable media attention",
-        "negative": "predominantly negative, suggesting adverse media attention that warrants attention",
-        "neutral": "largely neutral, indicating balanced or factual reporting",
-    }.get(dominant, "mixed")
-    src_desc = f"across {source_count} diverse sources" if source_count >= 5 else f"from {source_count} sources"
-    risk_desc = {
-        "critical": "This constitutes a critical risk profile requiring immediate crisis management.",
-        "high": "This represents elevated risk. Proactive monitoring and prepared responses are recommended.",
-        "medium": "Risk is moderate. Continue monitoring for escalation.",
-        "low": "Risk is low. Routine monitoring is sufficient.",
-    }.get(risk_level, "")
-    return (
-        f'Intelligence analysis for "{keyword}" identified {total} articles {src_desc}. '
-        f'Coverage is {sent_desc} '
-        f'(positive: {counts.get("positive", 0)}, '
-        f'negative: {counts.get("negative", 0)}, '
-        f'neutral: {counts.get("neutral", 0)}). {risk_desc}'
-    )
+async def _generate_executive_brief_llm(client_name: str, keyword: str, articles: list) -> dict:
+    if not articles:
+        return {
+            "happened": f'No significant coverage found for "{keyword}".',
+            "whyItMatters": "Low media presence.",
+            "recommendedAction": "Consider proactive content seeding.",
+            "riskLevel": "LOW",
+        }
+
+    context = "\n".join([f"- {a.get('title', '')}: {a.get('body_text', '')[:200]}" for a in articles[:10]])
+    
+    prompt = f"""You are a senior media intelligence analyst for {client_name}.
+Analyze these {len(articles)} recent news articles about "{keyword}".
+
+ARTICLES:
+{context}
+
+Write a concise intelligence brief in this EXACT format — 3 bullets only:
+
+WHAT HAPPENED: [one sentence — the key fact]
+WHY IT MATTERS: [one sentence — business impact for {client_name}]
+RECOMMENDED ACTION: [one sentence — what the PR/comms team should do now]
+RISK LEVEL: [LOW / MEDIUM / HIGH / CRITICAL]
+
+No other text. No preamble. Just the 4 lines above."""
+
+    import os
+    import httpx
+
+    ollama_url = os.getenv("OLLAMA_URL", "http://localhost:11434/api/generate")
+    ollama_model = os.getenv("OLLAMA_MODEL", "qwen2.5:1.5b")
+
+    result = {
+        "happened": "Analysis unavailable.",
+        "whyItMatters": "Analysis unavailable.",
+        "recommendedAction": "Routine monitoring.",
+        "riskLevel": "LOW",
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.post(
+                ollama_url,
+                json={
+                    "model": ollama_model,
+                    "prompt": prompt,
+                    "stream": False,
+                    "options": {"temperature": 0.2, "num_predict": 300},
+                },
+            )
+            if resp.status_code == 200:
+                answer = resp.json().get("response", "").strip()
+                for line in answer.split("\n"):
+                    line = line.strip()
+                    if line.startswith("WHAT HAPPENED:"):
+                        result["happened"] = line.replace("WHAT HAPPENED:", "").strip()
+                    elif line.startswith("WHY IT MATTERS:"):
+                        result["whyItMatters"] = line.replace("WHY IT MATTERS:", "").strip()
+                    elif line.startswith("RECOMMENDED ACTION:"):
+                        result["recommendedAction"] = line.replace("RECOMMENDED ACTION:", "").strip()
+                    elif line.startswith("RISK LEVEL:"):
+                        result["riskLevel"] = line.replace("RISK LEVEL:", "").strip()
+    except Exception as e:
+        logger.error(f"Ollama executive brief failed: {e}")
+
+    return result
 
 
 @router.post("/api/intelligence")
@@ -89,7 +131,11 @@ async def get_intelligence(req: IntelligenceRequest):
         src = a.get("source", a.get("origin", "unknown"))
         by_source[src] = by_source.get(src, 0) + 1
 
-    sent_counts = Counter(a.get("sentiment", "neutral") for a in articles)
+    def _get_sentiment(a):
+        s = a.get("sentiment", "neutral")
+        return s.get("label", "neutral") if isinstance(s, dict) else s
+
+    sent_counts = Counter(_get_sentiment(a) for a in articles)
     dominant = (
         "positive" if sent_counts.get("positive", 0) > sent_counts.get("negative", 0)
         and sent_counts.get("positive", 0) > sent_counts.get("neutral", 0)
@@ -132,21 +178,7 @@ async def get_intelligence(req: IntelligenceRequest):
     ]
 
     # Executive brief
-    executive_brief = _generate_executive_brief(
-        keyword, len(articles), source_count, dominant, dict(sent_counts), risk_level
-    )
-
-    why_it_matters = {
-        "critical": f'Coverage of "{keyword}" presents a critical risk profile. Immediate crisis management protocols should be activated.',
-        "high": f'Coverage of "{keyword}" shows elevated risk. Proactive monitoring and prepared response strategies are recommended.',
-        "medium": f'Coverage of "{keyword}" presents moderate risk. Continued monitoring is advised.',
-    }.get(risk_level, f'Coverage of "{keyword}" shows low risk with stable sentiment. Standard monitoring is sufficient.')
-
-    suggested_action = {
-        "critical": "Activate crisis communication protocol immediately. Convene stakeholder briefing within 2 hours.",
-        "high": "Escalate to senior communications team. Draft contingency messaging and prepare proactive statements.",
-        "medium": "Maintain enhanced monitoring with daily briefings. Prepare draft responses for potential escalation.",
-    }.get(risk_level, "Continue routine monitoring with weekly summary reports. No immediate action required.")
+    llm_brief = await _generate_executive_brief_llm(keyword, keyword, articles)
 
     # Helper to map backend article to frontend ScoredArticle shape
     def map_to_scored_article(a: dict, section: str = "company") -> dict:
@@ -210,9 +242,9 @@ async def get_intelligence(req: IntelligenceRequest):
         "competitionNews": [],
         "industryNews": [],
         "executiveBrief": {
-            "happened": executive_brief,
-            "whyItMatters": why_it_matters,
-            "recommendedAction": suggested_action,
+            "happened": llm_brief.get("happened", ""),
+            "whyItMatters": llm_brief.get("whyItMatters", ""),
+            "recommendedAction": llm_brief.get("recommendedAction", ""),
             "trendOutlook": "Stable"
         },
         "stats": {
