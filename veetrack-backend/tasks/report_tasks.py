@@ -60,12 +60,12 @@ try:
                 redis_sync.setex(f"report:{client_id}:{today}", 172800, pdf_bytes)
 
             # Email the report
-            asyncio.run(send_report_email(
+            send_report_email(
                 to_email=brief.get("report_email", ""),
                 client_name=brief.get("client_name", client_id),
                 date=today,
                 pdf_bytes=pdf_bytes,
-            ))
+            )
 
             return {
                 "client_id": client_id,

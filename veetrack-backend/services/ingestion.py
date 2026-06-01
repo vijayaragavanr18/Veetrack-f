@@ -43,6 +43,16 @@ def _strip_html(text: str) -> str:
     return re.sub(r"<[^>]+>", "", text).strip()
 
 
+def _get_client(timeout: int = 10, follow_redirects: bool = False) -> httpx.AsyncClient:
+    """Return an httpx client with proxy enabled if PROXY_URL is set in environment."""
+    import os
+    proxy = os.getenv("PROXY_URL")
+    
+    if proxy:
+        return httpx.AsyncClient(timeout=timeout, follow_redirects=follow_redirects, proxy=proxy)
+    return httpx.AsyncClient(timeout=timeout, follow_redirects=follow_redirects)
+
+
 def deduplicate_by_url(articles: list[dict]) -> list[dict]:
     """Remove articles with duplicate URLs (keep first occurrence)."""
     seen: set[str] = set()
@@ -69,7 +79,7 @@ async def fetch_google_news_rss(keyword: str, days: int = 5) -> list[dict]:
         f"?q={quote_plus(keyword)}&hl=en-IN&gl=IN&ceid=IN:en"
     )
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
+        async with _get_client(timeout=10) as client:
             resp = await client.get(url)
         feed = feedparser.parse(resp.text)
         since = datetime.now(timezone.utc) - timedelta(days=days)
@@ -119,18 +129,39 @@ async def fetch_gdelt(keyword: str) -> list[dict]:
         f"&maxrecords=10&format=json&sourcelang=english"
     )
     try:
-        async with httpx.AsyncClient(timeout=15) as client:
+        async with _get_client(timeout=15) as client:
             resp = await client.get(url)
         data = resp.json()
         articles = []
+
+        async def fetch_full_text(article_url: str) -> str:
+            try:
+                import trafilatura
+                async with _get_client(timeout=10, follow_redirects=True) as txt_client:
+                    r = await txt_client.get(article_url)
+                extracted = trafilatura.extract(r.text)
+                return extracted if extracted else ""
+            except Exception:
+                return ""
+
         for item in data.get("articles", []):
+            item_url = item.get("url", "")
+            body_text = item.get("title", "")
+            if item_url:
+                try:
+                    full = await fetch_full_text(item_url)
+                    if full:
+                        body_text = full
+                except Exception:
+                    pass
+
             articles.append(
                 {
                     "title": item.get("title", ""),
-                    "url": item.get("url", ""),
+                    "url": item_url,
                     "published_at": item.get("seendate", ""),
                     "source": item.get("domain", "GDELT"),
-                    "body_text": item.get("title", ""),
+                    "body_text": body_text,
                     "origin": "gdelt",
                 }
             )
@@ -154,7 +185,7 @@ async def fetch_hackernews(keyword: str, days: int = 5) -> list[dict]:
         f"&numericFilters=created_at_i>{since}&hitsPerPage=10"
     )
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
+        async with _get_client(timeout=10) as client:
             resp = await client.get(url)
         data = resp.json()
         articles = []
@@ -193,7 +224,7 @@ async def fetch_mastodon(keyword: str) -> list[dict]:
         f"?q={quote_plus(keyword)}&type=statuses&limit=10"
     )
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
+        async with _get_client(timeout=10) as client:
             resp = await client.get(url)
         data = resp.json()
         articles = []
@@ -227,7 +258,7 @@ async def fetch_wikimedia(keyword: str) -> list[dict]:
         f"&rcsearch={quote_plus(keyword)}&format=json"
     )
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
+        async with _get_client(timeout=10) as client:
             resp = await client.get(
                 url,
                 headers={"User-Agent": "VeeTrack/1.0 (media intelligence)"},

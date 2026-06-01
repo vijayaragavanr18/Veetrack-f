@@ -88,26 +88,24 @@ async def start_session(
     meta = {"chunks": chunks, "title": article_title}
 
     try:
-        from sentence_transformers import SentenceTransformer
         import faiss
         import numpy as np
 
-        # Re-use the module-level model from nlp_pipeline if available
-        try:
-            from services.nlp_pipeline import _embed_model, EMBED_BACKEND
-            model = _embed_model if (EMBED_BACKEND != "none" and _embed_model is not None) else SentenceTransformer("all-MiniLM-L6-v2")
-        except ImportError:
-            model = SentenceTransformer("all-MiniLM-L6-v2")
+        from services.ml_models import get_embed_model
+        _embed_model = get_embed_model()
+        if _embed_model is None:
+            raise ValueError("Embedding model not loaded")
 
-        embeddings = model.encode(chunks).astype("float32")
+        embeddings = _embed_model.encode(chunks).astype("float32")
         index = faiss.IndexFlatL2(embeddings.shape[1])
         index.add(embeddings)
 
         # Store FAISS index in memory (can't serialize to Redis)
-        _faiss_indexes[session_id] = {"index": index, "model": model, "embeddings": embeddings}
+        _faiss_indexes[session_id] = {"index": index, "model": _embed_model, "embeddings": embeddings}
         logger.info("[Chat] FAISS index built for session %s (%d chunks)", session_id, len(chunks))
     except Exception as e:
-        logger.info("[Chat] FAISS unavailable for session %s (%s), using keyword fallback", session_id, e)
+        logger.error("[Chat] FAISS setup failed for session %s: %s", session_id, e)
+        raise
 
     # Save metadata to Redis
     await _save_session_meta(session_id, meta)
@@ -131,19 +129,12 @@ async def ask_question(session_id: str, question: str) -> str:
     context_chunks: list[str] = []
 
     if faiss_data and "index" in faiss_data:
-        try:
-            import numpy as np
-            q_embed = faiss_data["model"].encode([question]).astype("float32")
-            _, indices = faiss_data["index"].search(q_embed, k=min(3, len(chunks)))
-            context_chunks = [chunks[i] for i in indices[0] if i < len(chunks)]
-        except Exception:
-            context_chunks = chunks[:3]
+        import numpy as np
+        q_embed = faiss_data["model"].encode([question]).astype("float32")
+        _, indices = faiss_data["index"].search(q_embed, k=min(3, len(chunks)))
+        context_chunks = [chunks[i] for i in indices[0] if i < len(chunks)]
     else:
-        # Keyword fallback
-        q_words = set(question.lower().split())
-        scored = [(sum(1 for w in q_words if w in c.lower()), c) for c in chunks]
-        scored.sort(reverse=True)
-        context_chunks = [c for _, c in scored[:3]]
+        return "RAG models unavailable for retrieval."
 
     context = "\n\n".join(context_chunks)
 
@@ -183,13 +174,10 @@ Answer:"""
                 answer = resp.json().get("response", "").strip()
                 if answer:
                     return answer
+            return "Failed to generate answer from LLM."
     except Exception as e:
-        logger.debug(f"[Chat] Ollama call failed ({e}), using context fallback")
-
-    # ── Final fallback: extract answer from context directly ──
-    if context_chunks:
-        return f"Based on the article: {context_chunks[0][:300]}..."
-    return "This information is not in the article."
+        logger.error(f"[Chat] Ollama call failed: {e}")
+        return "LLM generation unavailable."
 
 
 async def end_session(session_id: str) -> None:

@@ -72,7 +72,7 @@ export function useAlertSocket() {
               type: data.type ?? "RISK_ALERT",
               keyword: data.keyword ?? "",
               message: data.message ?? "",
-              priority: data.type === "RISK_ALERT" ? "HIGH" : "MEDIUM",
+              priority: data.priority || "MEDIUM",
               score: data.score ?? 0,
               threshold: data.type === "RISK_ALERT" ? 70 : 60,
               articleId: null,

@@ -19,85 +19,7 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-# ────────────────────────────────────────────────────────────────
-# SECTION 1: Model Loading (with fallbacks)
-# ────────────────────────────────────────────────────────────────
-
-# Cardiff RoBERTa for sentiment (primary)
-# Falls back to VADER if transformers not available
-try:
-    from transformers import pipeline as hf_pipeline
-
-    _sentiment_model = hf_pipeline(
-        "sentiment-analysis",
-        model="cardiffnlp/twitter-roberta-base-sentiment-latest",
-        top_k=1,
-    )
-    SENTIMENT_BACKEND = "roberta"
-    print("[NLP] Cardiff RoBERTa loaded ✓")
-except Exception as e:
-    print(f"[NLP] RoBERTa failed ({e}), falling back to VADER")
-    try:
-        from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
-
-        _vader = SentimentIntensityAnalyzer()
-    except Exception:
-        _vader = None
-    _sentiment_model = None
-    SENTIMENT_BACKEND = "vader"
-
-# spaCy for NER (primary: transformer model, fallback: sm, then regex)
-try:
-    import spacy
-    try:
-        _nlp = spacy.load("en_core_web_trf")
-        NER_BACKEND = "spacy"
-        print("[NLP] spaCy en_core_web_trf loaded ✓")
-    except OSError:
-        try:
-            _nlp = spacy.load("en_core_web_sm")
-            NER_BACKEND = "spacy"
-            print("[NLP] spaCy en_core_web_sm loaded ✓ (run: python -m spacy download en_core_web_trf for better accuracy)")
-        except OSError:
-            _nlp = None
-            NER_BACKEND = "regex"
-            print("[NLP] No spaCy model found, using regex NER fallback")
-except Exception as e:
-    print(f"[NLP] spaCy failed ({e}), using regex NER fallback")
-    _nlp = None
-    NER_BACKEND = "regex"
-
-# sentence-transformers for embeddings + semantic dedup
-try:
-    from sentence_transformers import SentenceTransformer
-
-    import faiss
-    import numpy as np
-
-    _embed_model = SentenceTransformer("all-MiniLM-L6-v2")
-    EMBED_BACKEND = "minilm"
-    print("[NLP] all-MiniLM-L6-v2 loaded ✓")
-except Exception as e:
-    print(f"[NLP] SentenceTransformer failed ({e}), skipping embeddings")
-    _embed_model = None
-    EMBED_BACKEND = "none"
-
-# sumy for extractive summarization
-try:
-    from sumy.nlp.tokenizers import Tokenizer
-    from sumy.parsers.plaintext import PlaintextParser
-    from sumy.summarizers.text_rank import TextRankSummarizer
-
-    _summarizer = TextRankSummarizer()
-    SUMMARY_BACKEND = "textrank"
-    print("[NLP] sumy TextRank loaded ✓")
-except Exception as e:
-    print(f"[NLP] sumy failed ({e}), using sentence-split fallback")
-    _summarizer = None
-    SUMMARY_BACKEND = "split"
-
-
-# ────────────────────────────────────────────────────────────────
+# Model loading is now handled centrally in services/ml_models.py
 # SECTION 2: Sentiment Analysis
 # ────────────────────────────────────────────────────────────────
 
@@ -112,55 +34,30 @@ def analyze_sentiment(text: str) -> dict:
     if not text or len(text.strip()) < 5:
         return {"label": "neutral", "score": 0.5}
 
-    if SENTIMENT_BACKEND == "roberta" and _sentiment_model is not None:
-        try:
-            result = _sentiment_model(text[:512])[0]
-            label_map = {
-                "LABEL_0": "negative",
-                "LABEL_1": "neutral",
-                "LABEL_2": "positive",
-                "negative": "negative",
-                "neutral": "neutral",
-                "positive": "positive",
-            }
-            raw_label = (
-                result[0]["label"] if isinstance(result, list) else result["label"]
-            )
-            raw_score = (
-                result[0]["score"] if isinstance(result, list) else result["score"]
-            )
-            return {
-                "label": label_map.get(raw_label, "neutral"),
-                "score": round(raw_score, 3),
-            }
-        except Exception:
-            pass  # Fall through to VADER
-
-    # VADER fallback
-    try:
-        from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
-
-        vader = _vader if _vader is not None else SentimentIntensityAnalyzer()
-        scores = vader.polarity_scores(text[:512])
-        compound = scores["compound"]
-        if compound >= 0.05:
-            return {"label": "positive", "score": round((compound + 1) / 2, 3)}
-        elif compound <= -0.05:
-            return {"label": "negative", "score": round((1 - compound) / 2, 3)}
-        else:
-            return {"label": "neutral", "score": 0.5}
-    except Exception:
-        # Ultimate fallback — keyword heuristic
-        text_lower = text.lower()
-        pos_words = {"good", "great", "excellent", "positive", "growth", "success"}
-        neg_words = {"bad", "terrible", "negative", "crisis", "failure", "risk"}
-        pos_count = sum(1 for w in pos_words if w in text_lower)
-        neg_count = sum(1 for w in neg_words if w in text_lower)
-        if neg_count > pos_count:
-            return {"label": "negative", "score": 0.7}
-        elif pos_count > neg_count:
-            return {"label": "positive", "score": 0.7}
-        return {"label": "neutral", "score": 0.5}
+    from services.ml_models import get_sentiment_model
+    _sentiment_model = get_sentiment_model()
+    
+    if _sentiment_model is not None:
+        result = _sentiment_model(text[:512])[0]
+        label_map = {
+            "LABEL_0": "negative",
+            "LABEL_1": "neutral",
+            "LABEL_2": "positive",
+            "negative": "negative",
+            "neutral": "neutral",
+            "positive": "positive",
+        }
+        raw_label = (
+            result[0]["label"] if isinstance(result, list) else result["label"]
+        )
+        raw_score = (
+            result[0]["score"] if isinstance(result, list) else result["score"]
+        )
+        return {
+            "label": label_map.get(raw_label, "neutral"),
+            "score": round(raw_score, 3),
+        }
+    return {"label": "neutral", "score": 0.5}
 
 
 # ────────────────────────────────────────────────────────────────
@@ -185,48 +82,20 @@ def extract_entities(text: str) -> list[dict]:
     """
     entities: list[dict] = []
 
-    if NER_BACKEND == "spacy" and _nlp is not None:
-        try:
-            doc = _nlp(text[:1000])
-            seen: set[str] = set()
-            for ent in doc.ents:
-                if ent.label_ in (
-                    "PERSON", "ORG", "GPE", "PRODUCT", "EVENT", "NORP",
-                ):
-                    key = ent.text.strip().lower()
-                    if key not in seen and len(ent.text.strip()) > 1:
-                        seen.add(key)
-                        entities.append({"text": ent.text.strip(), "label": ent.label_})
-        except Exception:
-            pass
+    from services.ml_models import get_ner_model
+    _nlp = get_ner_model()
 
-    # Regex fallback — always layer in if spaCy found nothing
-    if NER_BACKEND == "regex" or len(entities) == 0:
-        import re
-
-        # Organizations with common suffixes
-        org_pattern = re.compile(
-            r"\b([A-Z][a-zA-Z0-9&\-]+(?:Inc|Corp|Ltd|LLC|Group|Technologies|Systems|Entertainment))\b"
-        )
-        for match in org_pattern.finditer(text):
-            value = match.group(1).strip()
-            if not any(e["text"].lower() == value.lower() for e in entities):
-                entities.append({"text": value, "label": "ORG"})
-
-        # Persons — Title + Name
-        person_pattern = re.compile(
-            r"\b((?:Mr|Mrs|Ms|Dr|CEO|CTO|CFO|Minister|Director)\.?\s+[A-Z][a-zA-Z\-]+)\b"
-        )
-        for match in person_pattern.finditer(text):
-            value = match.group(1).strip()
-            if not any(e["text"].lower() == value.lower() for e in entities):
-                entities.append({"text": value, "label": "PERSON"})
-
-    # Always layer in domain-specific OTT entities
-    for ott in OTT_ENTITIES:
-        if ott.lower() in text.lower():
-            if not any(e["text"].lower() == ott.lower() for e in entities):
-                entities.append({"text": ott, "label": "ORG"})
+    if _nlp is not None:
+        doc = _nlp(text[:1000])
+        seen: set[str] = set()
+        for ent in doc.ents:
+            if ent.label_ in (
+                "PERSON", "ORG", "GPE", "PRODUCT", "EVENT", "NORP",
+            ):
+                key = ent.text.strip().lower()
+                if key not in seen and len(ent.text.strip()) > 1:
+                    seen.add(key)
+                    entities.append({"text": ent.text.strip(), "label": ent.label_})
 
     return entities[:8]
 
@@ -246,26 +115,20 @@ def summarize(text: str, sentences: int = 2) -> str:
     if not text or len(text.strip()) < 50:
         return text.strip()[:200]
 
-    if SUMMARY_BACKEND == "textrank" and _summarizer is not None:
-        try:
-            import nltk
+    from services.ml_models import get_summarizer
+    _summarizer = get_summarizer()
 
-            nltk.download("punkt_tab", quiet=True)
-            parser = PlaintextParser.from_string(text[:2000], Tokenizer("english"))
-            summary_sentences = _summarizer(parser.document, sentences)
-            result = " ".join(str(s) for s in summary_sentences)
-            if result.strip():
-                return result.strip()
-        except Exception:
-            pass
-
-    # Fallback: first 2 sentences
-    parts = [
-        s.strip()
-        for s in text.replace("!", ".").replace("?", ".").split(".")
-        if len(s.strip()) > 20
-    ]
-    return ". ".join(parts[:2]) + "." if parts else text[:200]
+    if _summarizer is not None:
+        import nltk
+        nltk.download("punkt_tab", quiet=True)
+        from sumy.nlp.tokenizers import Tokenizer
+        from sumy.parsers.plaintext import PlaintextParser
+        parser = PlaintextParser.from_string(text[:2000], Tokenizer("english"))
+        summary_sentences = _summarizer(parser.document, sentences)
+        result = " ".join(str(s) for s in summary_sentences)
+        if result.strip():
+            return result.strip()
+    return text[:200]
 
 
 # ────────────────────────────────────────────────────────────────
@@ -367,7 +230,10 @@ def cluster_articles(articles: list[dict]) -> list[dict]:
     Adds cluster_id to each article.
     Falls back to no clustering if embeddings unavailable.
     """
-    if EMBED_BACKEND == "none" or len(articles) < 3:
+    from services.ml_models import get_embed_model
+    _embed_model = get_embed_model()
+
+    if _embed_model is None or len(articles) < 3:
         for i, a in enumerate(articles):
             a["cluster_id"] = f"single_{i}"
         return articles
@@ -443,6 +309,15 @@ async def process_articles(articles: list[dict]) -> list[dict]:
         why = why_it_matters(keyword, sentiment, entities)
         action = suggested_action(risk, sentiment)
 
+        origin = article.get("origin", "")
+        category = (
+            "News" if origin in ("google_news_rss", "gdelt")
+            else "Social" if origin == "mastodon"
+            else "Technology" if origin == "hackernews"
+            else "Reference" if origin == "wikimedia"
+            else "Technology"
+        )
+
         processed.append(
             {
                 **article,
@@ -452,7 +327,7 @@ async def process_articles(articles: list[dict]) -> list[dict]:
                 "timestamp": article.get("published_at", "Just now"),
                 "publishedAt": article.get("published_at", ""),
                 "thumbnail": "https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=800&q=80",
-                "category": "Technology",
+                "category": category,
                 "sentiment": {
                     "label": sentiment,
                     "score": sentiment_score

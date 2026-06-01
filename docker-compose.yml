@@ -19,8 +19,8 @@ services:
 
   veetrack-backend:
     build:
-      context: ./veetrack-backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: veetrack-backend/Dockerfile
     container_name: veetrack-backend
     ports:
       - "8000:8000"
@@ -29,7 +29,7 @@ services:
       - OLLAMA_URL=http://host.docker.internal:11434/api/generate
       - OLLAMA_MODEL=qwen2.5:1.5b
     env_file:
-      - ./veetrack-backend/.env
+      - ./.env
     volumes:
       - model_cache:/root/.cache
     depends_on:
@@ -53,12 +53,12 @@ services:
 
   veetrack-celery-worker:
     build:
-      context: ./veetrack-backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: veetrack-backend/Dockerfile
     container_name: veetrack-celery-worker
     command: celery -A celery_app worker --loglevel=info --concurrency=4
     env_file:
-      - ./veetrack-backend/.env
+      - ./.env
     environment:
       - REDIS_URL=redis://veetrack-redis:6379/0
     volumes:
@@ -70,12 +70,12 @@ services:
 
   veetrack-celery-beat:
     build:
-      context: ./veetrack-backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: veetrack-backend/Dockerfile
     container_name: veetrack-celery-beat
     command: celery -A celery_app beat --loglevel=info
     env_file:
-      - ./veetrack-backend/.env
+      - ./.env
     environment:
       - REDIS_URL=redis://veetrack-redis:6379/0
     depends_on:

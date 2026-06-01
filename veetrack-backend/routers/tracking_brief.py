@@ -84,7 +84,7 @@ async def save_brief(brief: TrackingBrief):
         from core.redis_client import get_redis
         r = await get_redis()
         if r:
-            await r.setex(f"brief:{brief.client_id}", 2592000, brief.json())
+            await r.setex(f"brief:{brief.client_id}", 2592000, brief.model_dump_json())
             await r.sadd("all_clients", brief.client_id)
     except Exception as e:
         logger.warning(f"Redis save failed: {e}")
@@ -112,7 +112,7 @@ async def list_briefs():
     except Exception as e:
         logger.warning(f"Redis list failed: {e}")
     # Fallback: return ZEE5 demo
-    return {"briefs": [ZEE5_BRIEF.dict()], "count": 1}
+    return {"briefs": [ZEE5_BRIEF.model_dump()], "count": 1}
 
 
 @router.get("/api/tracking-brief/{client_id}")
@@ -128,7 +128,7 @@ async def get_brief(client_id: str):
     except Exception:
         pass
     if client_id == "zee5":
-        return ZEE5_BRIEF.dict()
+        return ZEE5_BRIEF.model_dump()
     raise HTTPException(status_code=404, detail=f"No brief for client_id: {client_id}")
 
 

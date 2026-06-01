@@ -148,6 +148,50 @@ async def get_intelligence(req: IntelligenceRequest):
         "medium": "Maintain enhanced monitoring with daily briefings. Prepare draft responses for potential escalation.",
     }.get(risk_level, "Continue routine monitoring with weekly summary reports. No immediate action required.")
 
+    # Helper to map backend article to frontend ScoredArticle shape
+    def map_to_scored_article(a: dict, section: str = "company") -> dict:
+        sentiment_data = a.get("sentiment", {})
+        if isinstance(sentiment_data, dict):
+            sentiment_label = sentiment_data.get("label", "neutral")
+            sentiment_conf = sentiment_data.get("score", 0.5)
+        else:
+            sentiment_label = "neutral"
+            sentiment_conf = 0.5
+
+        raw_entities = a.get("entities", [])
+        people = [e["text"] for e in raw_entities if isinstance(e, dict) and e.get("type") in ("PERSON", "Person")]
+        orgs = [e["text"] for e in raw_entities if isinstance(e, dict) and e.get("type") in ("ORG", "Organization", "Unknown")]
+        locs = [e["text"] for e in raw_entities if isinstance(e, dict) and e.get("type") in ("GPE", "Location")]
+
+        return {
+            "headline": a.get("title", a.get("headline", "Untitled")),
+            "url": a.get("url", ""),
+            "snippet": a.get("summary", ""),
+            "fullContent": a.get("body_text", ""),
+            "publication": a.get("source", a.get("origin", "Unknown")),
+            "edition": "Online",
+            "date": a.get("published_at", a.get("timestamp", "")),
+            "section": section,
+            "sentiment": sentiment_label,
+            "sentimentConfidence": sentiment_conf,
+            "sentimentReason": "",
+            "entities": {
+                "people": people,
+                "organizations": orgs,
+                "locations": locs
+            },
+            "sarcasmFlag": False,
+            "sarcasmReason": "",
+            "businessImpact": a.get("why_it_matters", a.get("whyItMatters", "")),
+            "tone": "Informative",
+            "keyQuote": "",
+            "relevanceScore": a.get("risk_score", a.get("riskScore", 0)),
+            "relevanceExplanation": a.get("suggested_action", a.get("suggestedAction", "")),
+            "isPriority": a.get("trend_score", a.get("trendScore", 0)) >= 60
+        }
+
+    scored_articles = [map_to_scored_article(a) for a in articles]
+
     # Hourly volume from trend engine (or zeros if Redis unavailable)
     try:
         from services.trend_engine import get_hourly_volume, record_keyword_volume
@@ -157,30 +201,31 @@ async def get_intelligence(req: IntelligenceRequest):
         hourly_volume = [0] * 24
 
     return {
-        "keyword": keyword,
+        "date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
         "generatedAt": datetime.now(timezone.utc).isoformat(),
-        "pipeline": "open_source",
-        "report": {
-            "summary": executive_brief,
-            "keyFindings": key_findings,
-            "suggestedAction": suggested_action,
-            "riskLevel": risk_level,
+        "clientName": keyword,
+        "criticalAlerts": [a for a in scored_articles if a.get("relevanceScore", 0) >= 70],
+        "priorityItems": [a for a in scored_articles if a.get("isPriority") and a.get("relevanceScore", 0) < 70],
+        "companyNews": scored_articles,
+        "competitionNews": [],
+        "industryNews": [],
+        "executiveBrief": {
+            "happened": executive_brief,
             "whyItMatters": why_it_matters,
-            "executiveBrief": executive_brief,
-            "topEntities": top_entities,
-            "sentimentBreakdown": {
-                "positive": sent_counts.get("positive", 0),
-                "negative": sent_counts.get("negative", 0),
-                "neutral": sent_counts.get("neutral", 0),
-            },
-            "riskScore": round(avg_risk),
-            "trendScore": round(avg_trend),
-            "hourlyVolume": hourly_volume,
-            "totalArticles": len(articles),
-            "sourceCount": source_count,
-            "sources": list(by_source.keys()),
+            "recommendedAction": suggested_action,
+            "trendOutlook": "Stable"
         },
-        "articles": articles,
+        "stats": {
+            "totalFound": len(raw) if 'raw' in locals() else len(articles),
+            "afterRelevance": len(articles),
+            "critical": len([a for a in articles if a.get("risk_score", 0) >= 70]),
+            "priority": len([a for a in articles if a.get("trend_score", 0) >= 60 and a.get("risk_score", 0) < 70]),
+            "positiveCount": sent_counts.get("positive", 0),
+            "negativeCount": sent_counts.get("negative", 0),
+            "neutralCount": sent_counts.get("neutral", 0),
+            "sourcesCount": source_count
+        },
+        "errors": []
     }
 
 

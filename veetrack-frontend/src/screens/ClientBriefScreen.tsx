@@ -20,13 +20,23 @@ interface TrackingBrief {
   report_time: string;
 }
 
+interface BriefArticle {
+  title: string;
+  url: string;
+  published_at?: string;
+  source: string;
+  body_text?: string;
+  origin?: string;
+  matchedKeyword?: string;
+}
+
 interface BriefFeed {
   client_id: string;
   client_name: string;
   date: string;
-  company: any[];
-  competition: any[];
-  industry: any[];
+  company: BriefArticle[];
+  competition: BriefArticle[];
+  industry: BriefArticle[];
   total: number;
 }
 
@@ -212,7 +222,7 @@ export default function ClientBriefScreen({ onBack }: Props) {
                     {labels.label} ({items.length})
                   </span>
                 </div>
-                {items.slice(0, 6).map((a: any, i: number) => (
+                {items.slice(0, 6).map((a: BriefArticle, i: number) => (
                   <div
                     key={i}
                     className="bg-[#0d0d18] border border-[#1e1e2e] rounded-lg p-3 mb-2 hover:border-[#2e2e3e] transition-colors"

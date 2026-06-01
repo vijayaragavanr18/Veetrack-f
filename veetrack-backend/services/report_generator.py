@@ -162,7 +162,7 @@ def generate_daily_report_pdf(
     return buffer.getvalue()
 
 
-async def send_report_email(
+def send_report_email(
     to_email: str,
     client_name: str,
     date: str,

@@ -1,0 +1,83 @@
+name: VeeTrack CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  # ── JOB 1: Run Automated Tests ───────────────────────────────────────────
+  test:
+    name: Run Tests (CI)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # -- Frontend Tests --
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: 'veetrack-frontend/package-lock.json'
+
+      - name: Install Frontend Dependencies
+        run: |
+          cd veetrack-frontend
+          npm ci
+
+      - name: Run Frontend Tests (Jest)
+        run: |
+          cd veetrack-frontend
+          npm run test
+
+      # -- Backend Tests --
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install Backend Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Backend Tests (Pytest)
+        run: |
+          cd veetrack-backend
+          pytest
+
+
+  # ── JOB 2: Deploy to Production ──────────────────────────────────────────
+  deploy:
+    name: Deploy to Server (CD)
+    needs: test  # This ensures deployment ONLY happens if tests pass!
+    if: github.ref == 'refs/heads/main' # Only deploy on main branch, not on PRs
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}      # e.g., 198.51.100.2
+          username: ${{ secrets.SERVER_USER }}  # e.g., root or ubuntu
+          key: ${{ secrets.SERVER_SSH_KEY }}    # Private SSH Key
+          script: |
+            # Navigate to the project directory on the server
+            cd /opt/veetrack-f1
+            
+            # Pull the latest code that just passed the tests
+            git fetch origin main
+            git reset --hard origin/main
+            
+            # Rebuild and restart the Docker containers in detached mode
+            docker-compose up --build -d
+            
+            # Prune old dangling images to save disk space
+            docker image prune -f
