@@ -87,7 +87,9 @@ export async function GET(request: Request) {
           readingTime: '3 min read',
           source: item.publication,
           sentiment: item.sentiment === 'positive' || item.sentiment === 'negative' ? item.sentiment : 'neutral',
-          content: `<p class="mb-4">${item.fullContent || item.snippet}</p>`,
+          content: item.fullContent && item.fullContent.includes('<p')
+            ? item.fullContent
+            : `<p class="mb-4">${item.fullContent || item.snippet}</p>`,
           aiNarrative: combinedBrief || 'AI Narrative processing...'
         });
       });

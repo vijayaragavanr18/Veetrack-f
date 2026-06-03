@@ -228,7 +228,7 @@ async def get_intelligence(req: IntelligenceRequest):
             "headline": a.get("title", a.get("headline", "Untitled")),
             "url": a.get("url", ""),
             "snippet": a.get("summary", ""),
-            "fullContent": a.get("body_text", ""),
+            "fullContent": a.get("fullContent", a.get("body_text", "")),
             "publication": a.get("source", a.get("origin", "Unknown")),
             "edition": "Online",
             "date": a.get("published_at", a.get("timestamp", "")),
