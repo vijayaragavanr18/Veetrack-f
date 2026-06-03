@@ -106,9 +106,21 @@ export const NewsCard: React.FC<NewsCardProps> = ({
 
         {/* Source and Sentiment Badges */}
         <div className="absolute top-4 left-4 right-4 flex justify-between items-center z-20">
-          <span className="px-2.5 py-0.5 bg-background/80 backdrop-blur-md border border-outline-variant/30 text-on-surface rounded-full font-label-sm text-[11px] uppercase tracking-wider shadow-sm">
-            {article.source}
-          </span>
+          {article.url ? (
+            <a 
+              href={article.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="px-2.5 py-0.5 bg-background/80 hover:bg-surface-container-high transition-colors backdrop-blur-md border border-outline-variant/30 text-on-surface rounded-full font-label-sm text-[11px] uppercase tracking-wider shadow-sm cursor-pointer"
+            >
+              {article.source}
+            </a>
+          ) : (
+            <span className="px-2.5 py-0.5 bg-background/80 backdrop-blur-md border border-outline-variant/30 text-on-surface rounded-full font-label-sm text-[11px] uppercase tracking-wider shadow-sm">
+              {article.source}
+            </span>
+          )}
           <span className={`px-2.5 py-0.5 rounded-full font-label-sm text-[11px] uppercase tracking-wider shadow-sm flex items-center gap-1.5 bg-background/80 backdrop-blur-md border ${
             article.sentiment === 'positive'
               ? 'border-emerald-500/30 text-emerald-400'
@@ -146,7 +158,20 @@ export const NewsCard: React.FC<NewsCardProps> = ({
                     {article.category}
                   </span>
                   <span className="text-[11px] font-mono text-on-surface-variant/50">
-                    Source: {article.source}
+                    Source:{' '}
+                    {article.url ? (
+                      <a 
+                        href={article.url} 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        onClick={(e) => e.stopPropagation()}
+                        className="hover:underline text-primary-container font-semibold cursor-pointer"
+                      >
+                        {article.source}
+                      </a>
+                    ) : (
+                      article.source
+                    )}
                   </span>
                 </div>
                 <span className="text-[11px] font-mono text-on-surface-variant/50">1/4 • OVERVIEW</span>
@@ -169,7 +194,20 @@ export const NewsCard: React.FC<NewsCardProps> = ({
                     Facts & Analysis
                   </span>
                   <span className="text-[11px] font-mono text-on-surface-variant/50">
-                    Source: {article.source}
+                    Source:{' '}
+                    {article.url ? (
+                      <a 
+                        href={article.url} 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        onClick={(e) => e.stopPropagation()}
+                        className="hover:underline text-primary-container font-semibold cursor-pointer"
+                      >
+                        {article.source}
+                      </a>
+                    ) : (
+                      article.source
+                    )}
                   </span>
                 </div>
                 <span className="text-[11px] font-mono text-on-surface-variant/50">2/4 • THE FACTS</span>
@@ -214,7 +252,20 @@ export const NewsCard: React.FC<NewsCardProps> = ({
                     AI Narrative
                   </span>
                   <span className="text-[11px] font-mono text-on-surface-variant/50">
-                    Source: {article.source}
+                    Source:{' '}
+                    {article.url ? (
+                      <a 
+                        href={article.url} 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        onClick={(e) => e.stopPropagation()}
+                        className="hover:underline text-primary-container font-semibold cursor-pointer"
+                      >
+                        {article.source}
+                      </a>
+                    ) : (
+                      article.source
+                    )}
                   </span>
                 </div>
                 <span className="text-[11px] font-mono text-on-surface-variant/50">3/4 • COGNITIVE POV</span>
@@ -240,7 +291,20 @@ export const NewsCard: React.FC<NewsCardProps> = ({
                     Suggested Actions
                   </span>
                   <span className="text-[11px] font-mono text-on-surface-variant/50">
-                    Source: {article.source}
+                    Source:{' '}
+                    {article.url ? (
+                      <a 
+                        href={article.url} 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        onClick={(e) => e.stopPropagation()}
+                        className="hover:underline text-primary-container font-semibold cursor-pointer"
+                      >
+                        {article.source}
+                      </a>
+                    ) : (
+                      article.source
+                    )}
                   </span>
                 </div>
                 <span className="text-[11px] font-mono text-on-surface-variant/50">4/4 • ACTION PLAYBOOK</span>

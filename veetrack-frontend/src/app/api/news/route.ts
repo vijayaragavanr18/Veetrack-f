@@ -90,7 +90,8 @@ export async function GET(request: Request) {
           content: item.fullContent && item.fullContent.includes('<p')
             ? item.fullContent
             : `<p class="mb-4">${item.fullContent || item.snippet}</p>`,
-          aiNarrative: combinedBrief || 'AI Narrative processing...'
+          aiNarrative: combinedBrief || 'AI Narrative processing...',
+          url: item.url || ''
         });
       });
     }

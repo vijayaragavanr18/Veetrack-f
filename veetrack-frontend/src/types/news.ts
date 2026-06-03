@@ -16,4 +16,5 @@ export interface Article {
   sentiment: 'positive' | 'negative' | 'neutral';
   content: string;
   aiNarrative: string;
+  url?: string;
 }
