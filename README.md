@@ -22,7 +22,7 @@ Because privacy is paramount, **VeeTrack relies entirely on open-source AI model
     *   **Sentiment Analysis:** Uses Cardiff NLP's Twitter RoBERTa model to detect positive, negative, and neutral tones.
     *   **Content Deduplication:** Uses `datasketch` (MinHash LSH) to identify near-duplicate articles and reduce noise.
     *   **Narrative Clustering:** Groups thousands of articles into readable "trends" using `HDBSCAN` and `SentenceTransformers`.
-*   **Executive Brief Generation:** Prompts a local Large Language Model (`qwen2.5:1.5b` via Ollama) to output strict, 4-bullet executive reports (What Happened, Why It Matters, Recommended Action, Risk Level).
+*   **Executive Brief Generation:** Prompts a local Large Language Model (`qwen2.5:3b` via Ollama) to output strict, 4-bullet executive reports (What Happened, Why It Matters, Recommended Action, Risk Level).
 *   **Modern 3D Interface:** A highly visual, gesture-driven frontend reader built with Next.js 15, React 19, and Tailwind CSS.
 *   **Zero-Config Local Execution:** No heavy Docker requirements for local development.
 
@@ -64,7 +64,7 @@ FRONTEND_URL=http://127.0.0.1:3000
 
 # Optional: Local LLM Configuration
 OLLAMA_URL=http://127.0.0.1:11434/api/generate
-OLLAMA_MODEL=qwen2.5:1.5b
+OLLAMA_MODEL=qwen2.5:3b
 ```
 
 ### 3. Installation & Boot Up

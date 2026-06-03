@@ -39,12 +39,12 @@ python -c "import nltk; nltk.download('punkt', quiet=True); nltk.download('punkt
 echo Checking Ollama...
 where ollama >nul 2>nul
 if %errorlevel% equ 0 (
-    ollama list 2>nul | findstr "qwen2.5:1.5b" >nul
+    ollama list 2>nul | findstr "qwen2.5:3b" >nul
     if errorlevel 1 (
-        echo Pulling qwen2.5:1.5b model...
-        ollama pull qwen2.5:1.5b
+        echo Pulling qwen2.5:3b model...
+        ollama pull qwen2.5:3b
     )
-    echo Ollama ready qwen2.5:1.5b [OK]
+    echo Ollama ready qwen2.5:3b [OK]
 ) else (
     echo WARNING: Ollama not found. Chat falls back to context extraction.
     echo          Download and install from https://ollama.com/download

@@ -55,11 +55,13 @@ Analyze these {len(articles)} recent news articles about "{keyword}".
 ARTICLES:
 {context}
 
-Write a concise intelligence brief in this EXACT format — 3 bullets only:
+Write a detailed, analytical, and professional media intelligence brief. Ensure the narrative is comprehensive and provides deep synthesis of the events.
 
-WHAT HAPPENED: [one sentence — the key fact]
-WHY IT MATTERS: [one sentence — business impact for {client_name}]
-RECOMMENDED ACTION: [one sentence — what the PR/comms team should do now]
+Use this EXACT format (exactly 4 lines, do not insert newlines within the paragraphs):
+
+WHAT HAPPENED: [Detailed, comprehensive, and analytical paragraph (3-4 sentences) summarizing the main narratives, events, and key facts across the coverage]
+WHY IT MATTERS: [Detailed paragraph (2-3 sentences) explaining the business impact, brand sentiment, and implications for {client_name}]
+RECOMMENDED ACTION: [Detailed, action-oriented paragraph (2-3 sentences) proposing strategic communication steps, risk mitigation, or PR opportunities]
 RISK LEVEL: [LOW / MEDIUM / HIGH / CRITICAL]
 
 No other text. No preamble. Just the 4 lines above."""
@@ -68,7 +70,7 @@ No other text. No preamble. Just the 4 lines above."""
     import httpx
 
     ollama_url = os.getenv("OLLAMA_URL", "http://localhost:11434/api/generate")
-    ollama_model = os.getenv("OLLAMA_MODEL", "qwen2.5:1.5b")
+    ollama_model = os.getenv("OLLAMA_MODEL", "qwen2.5:3b")
 
     result = {
         "happened": "Analysis unavailable.",
@@ -85,7 +87,7 @@ No other text. No preamble. Just the 4 lines above."""
                     "model": ollama_model,
                     "prompt": prompt,
                     "stream": False,
-                    "options": {"temperature": 0.2, "num_predict": 300},
+                    "options": {"temperature": 0.2, "num_predict": 800},
                 },
             )
             if resp.status_code == 200:
