@@ -335,11 +335,31 @@ Output valid JSON only. No preamble, no other text."""
                 },
             )
             if resp.status_code == 200:
-                data = json.loads(resp.json().get("response", "{}"))
+                resp_text = resp.json().get("response", "").strip()
+                
+                # Extract JSON using regex if wrapped in backticks or markdown code blocks
+                import re
+                json_match = re.search(r"\{.*\}", resp_text, re.DOTALL)
+                if json_match:
+                    resp_text = json_match.group(0)
+                    
+                data = json.loads(resp_text)
+                
+                # Get lists using all common key variations
+                raw_what = next((data.get(k) for k in ("what_happened", "whatHappened", "what happened", "whathappened") if k in data), [])
+                raw_why = next((data.get(k) for k in ("why_it_matters", "whyItMatters", "why it matters", "whyitmatters") if k in data), [])
+                raw_actions = next((data.get(k) for k in ("suggested_actions", "suggestedActions", "suggested actions", "suggestedactionlist", "suggested_action_list") if k in data), [])
+                
+                # Ensure they are lists of clean strings without markdown asterisks
+                def clean_items(lst):
+                    if not isinstance(lst, list):
+                        return []
+                    return [str(item).replace("*", "").strip() for item in lst if item]
+                    
                 return {
-                    "whatHappenedList": data.get("what_happened", []),
-                    "whyItMattersList": data.get("why_it_matters", []),
-                    "suggestedActionList": data.get("suggested_actions", []),
+                    "whatHappenedList": clean_items(raw_what),
+                    "whyItMattersList": clean_items(raw_why),
+                    "suggestedActionList": clean_items(raw_actions),
                 }
     except Exception as e:
         logger.error(f"Ollama article analysis failed: {e}")

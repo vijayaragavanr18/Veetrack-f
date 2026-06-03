@@ -57,6 +57,8 @@ ARTICLES:
 
 Write an extremely detailed, analytical, and comprehensive executive media intelligence brief of at least 500 to 1000 words. Use a professional, executive tone.
 
+IMPORTANT: Do not use any markdown formatting, asterisks (*), bold markup, or bullet characters in your narrative. Output clean, plain paragraphs only.
+
 You must structure your brief using these EXACT section headers:
 
 WHAT HAPPENED:
@@ -107,13 +109,13 @@ Do not include any preamble, introduction, or conversational filler. Start direc
                 risk_match = re.search(r"RISK LEVEL:(.*?)$", answer, re.DOTALL | re.IGNORECASE)
                 
                 if happened_match:
-                    result["happened"] = happened_match.group(1).strip()
+                    result["happened"] = happened_match.group(1).replace("*", "").strip()
                 if why_match:
-                    result["whyItMatters"] = why_match.group(1).strip()
+                    result["whyItMatters"] = why_match.group(1).replace("*", "").strip()
                 if action_match:
-                    result["recommendedAction"] = action_match.group(1).strip()
+                    result["recommendedAction"] = action_match.group(1).replace("*", "").strip()
                 if risk_match:
-                    result["riskLevel"] = risk_match.group(1).strip().upper()
+                    result["riskLevel"] = risk_match.group(1).replace("*", "").strip().upper()
     except Exception as e:
         logger.error(f"Ollama executive brief failed: {e}")
 
