@@ -308,11 +308,12 @@ Title: {title}
 Source: {source}
 Content: {body_text[:1200]}
 
-Generate a detailed analysis in JSON format with three keys:
-- "what_happened": A list of exactly 3 detailed bullet points (1-2 sentences each) summarizing the key facts and events. Do not repeat the title exactly. Do not use HTML tags or HTML entity codes like &nbsp;.
-- "why_it_matters": A list of exactly 3 detailed bullet points (1-2 sentences each) explaining the business/PR impact, sentiment implications, and industry significance of this news for {keyword}.
-- "suggested_actions": A list of exactly 3 detailed bullet points (1-2 sentences each) proposing concrete strategic actions for the PR/comms team.
+Generate a detailed, objective, and professional media analysis in JSON format with three keys:
+- "what_happened": A list of exactly 3 detailed bullet points (1-2 sentences each) summarizing the key facts, metrics, events, and statements. Do not write generic summaries. Start directly with the factual event. Do not use markdown formatting.
+- "why_it_matters": A list of exactly 3 detailed bullet points (1-2 sentences each) explaining the business/PR impact, sentiment implications, and industry significance of this news for {keyword}. Avoid introductory boilerplate; start directly with the analytical impact.
+- "suggested_actions": A list of exactly 3 detailed bullet points (1-2 sentences each) proposing concrete, strategic, and actionable steps for the PR/comms team.
 
+Ensure every single bullet point is highly specific, clear, and professional. Do not use asterisks (*) or markdown.
 Output valid JSON only. No preamble, no other text."""
 
     import os
@@ -336,6 +337,19 @@ Output valid JSON only. No preamble, no other text."""
             )
             if resp.status_code == 200:
                 resp_text = resp.json().get("response", "").strip()
+                
+                # Replace curly quotes and smart punctuation to prevent encoding issues
+                replacements = {
+                    "’": "'",
+                    "‘": "'",
+                    "“": '"',
+                    "”": '"',
+                    "–": "-",
+                    "—": "-",
+                    "…": "...",
+                }
+                for original, replacement in replacements.items():
+                    resp_text = resp_text.replace(original, replacement)
                 
                 # Extract JSON using regex if wrapped in backticks or markdown code blocks
                 import re

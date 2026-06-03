@@ -103,6 +103,19 @@ Do not include any preamble, introduction, or conversational filler. Start direc
             if resp.status_code == 200:
                 answer = resp.json().get("response", "").strip()
                 
+                # Replace curly quotes and smart punctuation to prevent encoding issues
+                replacements = {
+                    "’": "'",
+                    "‘": "'",
+                    "“": '"',
+                    "”": '"',
+                    "–": "-",
+                    "—": "-",
+                    "…": "...",
+                }
+                for original, replacement in replacements.items():
+                    answer = answer.replace(original, replacement)
+                
                 happened_match = re.search(r"WHAT HAPPENED:(.*?)(?=WHY IT MATTERS:|$)", answer, re.DOTALL | re.IGNORECASE)
                 why_match = re.search(r"WHY IT MATTERS:(.*?)(?=RECOMMENDED ACTION:|$)", answer, re.DOTALL | re.IGNORECASE)
                 action_match = re.search(r"RECOMMENDED ACTION:(.*?)(?=RISK LEVEL:|$)", answer, re.DOTALL | re.IGNORECASE)
