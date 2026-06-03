@@ -293,6 +293,61 @@ def suggested_action(risk_score: int, sentiment: str) -> str:
         )
 
 
+async def analyze_single_article_llm(article: dict, keyword: str) -> dict:
+    """
+    Generate detailed 'what happened', 'why it matters', and 'suggested actions'
+    for a single article using the local Qwen2.5 3B model via Ollama.
+    """
+    title = article.get("title", "Untitled")
+    source = article.get("source", "Unknown")
+    body_text = article.get("body_text", "") or title
+
+    prompt = f"""You are a senior media intelligence analyst. Analyze this news article about the keyword "{keyword}".
+
+Title: {title}
+Source: {source}
+Content: {body_text[:1200]}
+
+Generate a detailed analysis in JSON format with three keys:
+- "what_happened": A list of exactly 3 detailed bullet points (1-2 sentences each) summarizing the key facts and events. Do not repeat the title exactly. Do not use HTML tags or HTML entity codes like &nbsp;.
+- "why_it_matters": A list of exactly 3 detailed bullet points (1-2 sentences each) explaining the business/PR impact, sentiment implications, and industry significance of this news for {keyword}.
+- "suggested_actions": A list of exactly 3 detailed bullet points (1-2 sentences each) proposing concrete strategic actions for the PR/comms team.
+
+Output valid JSON only. No preamble, no other text."""
+
+    import os
+    import httpx
+    import json
+
+    ollama_url = os.getenv("OLLAMA_URL", "http://localhost:11434/api/generate")
+    ollama_model = os.getenv("OLLAMA_MODEL", "qwen2.5:3b")
+
+    try:
+        async with httpx.AsyncClient(timeout=20) as client:
+            resp = await client.post(
+                ollama_url,
+                json={
+                    "model": ollama_model,
+                    "prompt": prompt,
+                    "format": "json",
+                    "stream": False,
+                    "options": {"temperature": 0.1, "num_predict": 600},
+                },
+            )
+            if resp.status_code == 200:
+                data = json.loads(resp.json().get("response", "{}"))
+                return {
+                    "whatHappenedList": data.get("what_happened", []),
+                    "whyItMattersList": data.get("why_it_matters", []),
+                    "suggestedActionList": data.get("suggested_actions", []),
+                }
+    except Exception as e:
+        logger.error(f"Ollama article analysis failed: {e}")
+    
+    # Fallback empty lists if LLM fails
+    return {}
+
+
 # ────────────────────────────────────────────────────────────────
 # SECTION 7: Story Clustering
 # ────────────────────────────────────────────────────────────────
@@ -453,7 +508,22 @@ async def process_articles(articles: list[dict]) -> list[dict]:
             return unique
 
         processed = deduplicate_by_content(processed)
+        
+        # Sort by combined priority score (riskScore + trendScore) descending
+        processed.sort(key=lambda x: x.get("riskScore", 0) + x.get("trendScore", 0), reverse=True)
+        
+        # Concurrently enrich the top 6 articles using local Ollama model
+        import asyncio
+        top_articles = processed[:6]
+        tasks = [analyze_single_article_llm(art, art.get("keyword", "")) for art in top_articles]
+        llm_results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        for art, res in zip(top_articles, llm_results):
+            if isinstance(res, dict) and res:
+                art["whatHappenedList"] = res.get("whatHappenedList")
+                art["whyItMattersList"] = res.get("whyItMattersList")
+                art["suggestedActionList"] = res.get("suggestedActionList")
     except Exception as e:
-        print(f"[NLP] Deduplication failed ({e}), skipping")
+        print(f"[NLP] Deduplication or LLM enrichment failed ({e}), skipping")
 
     return cluster_articles(processed)

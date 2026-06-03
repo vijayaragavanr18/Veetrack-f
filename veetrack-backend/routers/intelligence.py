@@ -55,19 +55,27 @@ Analyze these {len(articles)} recent news articles about "{keyword}".
 ARTICLES:
 {context}
 
-Write a detailed, analytical, and professional media intelligence brief. Ensure the narrative is comprehensive and provides deep synthesis of the events.
+Write an extremely detailed, analytical, and comprehensive executive media intelligence brief of at least 500 to 1000 words. Use a professional, executive tone.
 
-Use this EXACT format (exactly 4 lines, do not insert newlines within the paragraphs):
+You must structure your brief using these EXACT section headers:
 
-WHAT HAPPENED: [Detailed, comprehensive, and analytical paragraph (3-4 sentences) summarizing the main narratives, events, and key facts across the coverage]
-WHY IT MATTERS: [Detailed paragraph (2-3 sentences) explaining the business impact, brand sentiment, and implications for {client_name}]
-RECOMMENDED ACTION: [Detailed, action-oriented paragraph (2-3 sentences) proposing strategic communication steps, risk mitigation, or PR opportunities]
-RISK LEVEL: [LOW / MEDIUM / HIGH / CRITICAL]
+WHAT HAPPENED:
+[Provide a highly detailed, 2-3 paragraph breakdown of the main events, narrative arcs, timelines, and facts across all of the articles. Synthesize the core news cycle deeply.]
 
-No other text. No preamble. Just the 4 lines above."""
+WHY IT MATTERS:
+[Provide a highly detailed, 2-3 paragraph analytical assessment of the business impact, public sentiment trends, market positioning implications, and long-term consequences for {client_name}.]
+
+RECOMMENDED ACTION:
+[Provide a highly detailed, 2-3 paragraph communication action playbook. Specify concrete steps for the PR/comms team, risk mitigation strategies, and response templates or engagement opportunities.]
+
+RISK LEVEL:
+[Choose one: LOW / MEDIUM / HIGH / CRITICAL]
+
+Do not include any preamble, introduction, or conversational filler. Start directly with "WHAT HAPPENED:"."""
 
     import os
     import httpx
+    import re
 
     ollama_url = os.getenv("OLLAMA_URL", "http://localhost:11434/api/generate")
     ollama_model = os.getenv("OLLAMA_MODEL", "qwen2.5:3b")
@@ -80,28 +88,32 @@ No other text. No preamble. Just the 4 lines above."""
     }
 
     try:
-        async with httpx.AsyncClient(timeout=30) as client:
+        async with httpx.AsyncClient(timeout=45) as client:
             resp = await client.post(
                 ollama_url,
                 json={
                     "model": ollama_model,
                     "prompt": prompt,
                     "stream": False,
-                    "options": {"temperature": 0.2, "num_predict": 800},
+                    "options": {"temperature": 0.2, "num_predict": 1500},
                 },
             )
             if resp.status_code == 200:
                 answer = resp.json().get("response", "").strip()
-                for line in answer.split("\n"):
-                    line = line.strip()
-                    if line.startswith("WHAT HAPPENED:"):
-                        result["happened"] = line.replace("WHAT HAPPENED:", "").strip()
-                    elif line.startswith("WHY IT MATTERS:"):
-                        result["whyItMatters"] = line.replace("WHY IT MATTERS:", "").strip()
-                    elif line.startswith("RECOMMENDED ACTION:"):
-                        result["recommendedAction"] = line.replace("RECOMMENDED ACTION:", "").strip()
-                    elif line.startswith("RISK LEVEL:"):
-                        result["riskLevel"] = line.replace("RISK LEVEL:", "").strip()
+                
+                happened_match = re.search(r"WHAT HAPPENED:(.*?)(?=WHY IT MATTERS:|$)", answer, re.DOTALL | re.IGNORECASE)
+                why_match = re.search(r"WHY IT MATTERS:(.*?)(?=RECOMMENDED ACTION:|$)", answer, re.DOTALL | re.IGNORECASE)
+                action_match = re.search(r"RECOMMENDED ACTION:(.*?)(?=RISK LEVEL:|$)", answer, re.DOTALL | re.IGNORECASE)
+                risk_match = re.search(r"RISK LEVEL:(.*?)$", answer, re.DOTALL | re.IGNORECASE)
+                
+                if happened_match:
+                    result["happened"] = happened_match.group(1).strip()
+                if why_match:
+                    result["whyItMatters"] = why_match.group(1).strip()
+                if action_match:
+                    result["recommendedAction"] = action_match.group(1).strip()
+                if risk_match:
+                    result["riskLevel"] = risk_match.group(1).strip().upper()
     except Exception as e:
         logger.error(f"Ollama executive brief failed: {e}")
 
@@ -221,7 +233,10 @@ async def get_intelligence(req: IntelligenceRequest):
             "keyQuote": "",
             "relevanceScore": a.get("risk_score", a.get("riskScore", 0)),
             "relevanceExplanation": a.get("suggested_action", a.get("suggestedAction", "")),
-            "isPriority": a.get("trend_score", a.get("trendScore", 0)) >= 60
+            "isPriority": a.get("trend_score", a.get("trendScore", 0)) >= 60,
+            "whatHappenedList": a.get("whatHappenedList"),
+            "whyItMattersList": a.get("whyItMattersList"),
+            "suggestedActionList": a.get("suggestedActionList"),
         }
 
     scored_articles = [map_to_scored_article(a) for a in articles]

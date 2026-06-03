@@ -46,27 +46,40 @@ export async function GET(request: Request) {
         }
         const articleId = `art-${Math.abs(hash)}`;
 
+        const combinedBrief = [
+          data.executiveBrief?.happened ? `WHAT HAPPENED:\n${data.executiveBrief.happened}` : '',
+          data.executiveBrief?.whyItMatters ? `WHY IT MATTERS:\n${data.executiveBrief.whyItMatters}` : '',
+          data.executiveBrief?.recommendedAction ? `RECOMMENDED ACTION:\n${data.executiveBrief.recommendedAction}` : '',
+          data.executiveBrief?.riskLevel ? `RISK LEVEL: ${data.executiveBrief.riskLevel}` : ''
+        ].filter(Boolean).join('\n\n');
+
         articles.push({
           id: articleId,
           category: category,
           title: item.headline || 'Untitled Article',
           summary: item.snippet || '',
           keywordSummary: `Relevance score: ${item.relevanceScore}/100. Mentioned entities: ${[...(item.entities?.organizations || []), ...(item.entities?.people || [])].join(', ')}.`,
-          whatHappened: [
-            item.headline,
-            item.snippet,
-            `Reported by ${item.publication}`
-          ],
-          whyItMatters: [
-            item.businessImpact || 'Ongoing monitoring required.',
-            `Sentiment is predominantly ${item.sentiment}.`,
-            `Source authority level: ${item.relevanceScore > 50 ? 'High' : 'Medium'}.`
-          ],
-          aiActions: [
-            item.relevanceExplanation || 'Continue standard tracking.',
-            'Monitor closely for updates.',
-            'Cross-reference with related competitors.'
-          ],
+          whatHappened: item.whatHappenedList && item.whatHappenedList.length > 0
+            ? item.whatHappenedList
+            : [
+                item.headline,
+                item.snippet,
+                `Reported by ${item.publication}`
+              ],
+          whyItMatters: item.whyItMattersList && item.whyItMattersList.length > 0
+            ? item.whyItMattersList
+            : [
+                item.businessImpact || 'Ongoing monitoring required.',
+                `Sentiment is predominantly ${item.sentiment}.`,
+                `Source authority level: ${item.relevanceScore > 50 ? 'High' : 'Medium'}.`
+              ],
+          aiActions: item.suggestedActionList && item.suggestedActionList.length > 0
+            ? item.suggestedActionList
+            : [
+                item.relevanceExplanation || 'Continue standard tracking.',
+                'Monitor closely for updates.',
+                'Cross-reference with related competitors.'
+              ],
           imageUrl: imageUrl,
           imageAlt: item.headline,
           author: item.publication,
@@ -75,7 +88,7 @@ export async function GET(request: Request) {
           source: item.publication,
           sentiment: item.sentiment === 'positive' || item.sentiment === 'negative' ? item.sentiment : 'neutral',
           content: `<p class="mb-4">${item.fullContent || item.snippet}</p>`,
-          aiNarrative: data.executiveBrief?.happened || 'AI Narrative processing...'
+          aiNarrative: combinedBrief || 'AI Narrative processing...'
         });
       });
     }
