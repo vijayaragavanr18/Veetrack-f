@@ -174,7 +174,7 @@ export const NewsCard: React.FC<NewsCardProps> = ({
                 </div>
                 <span className="text-[11px] font-mono text-on-surface-variant/50">2/4 • THE FACTS</span>
               </div>
-              <div className="flex-1 overflow-y-auto space-y-4 pr-1 scrollbar-thin">
+              <div className="flex-1 overflow-y-auto space-y-4 pr-1 pb-20 scrollbar-thin">
                 <div>
                   <h4 className="text-[10px] font-bold text-blue-400 uppercase tracking-wider mb-2">What Happened</h4>
                   <ul className="space-y-2 font-body-lg text-body-md md:text-body-lg text-on-surface-variant leading-relaxed">
@@ -219,7 +219,7 @@ export const NewsCard: React.FC<NewsCardProps> = ({
                 </div>
                 <span className="text-[11px] font-mono text-on-surface-variant/50">3/4 • COGNITIVE POV</span>
               </div>
-              <div className="flex-1 overflow-y-auto pr-1 scrollbar-thin">
+              <div className="flex-1 overflow-y-auto pr-1 pb-20 scrollbar-thin">
                 <p className="font-body-lg text-body-md md:text-body-lg text-on-surface-variant leading-relaxed text-justify whitespace-pre-line italic pr-1">
                   &ldquo;{article.aiNarrative}&rdquo;
                 </p>
@@ -245,7 +245,7 @@ export const NewsCard: React.FC<NewsCardProps> = ({
                 </div>
                 <span className="text-[11px] font-mono text-on-surface-variant/50">4/4 • ACTION PLAYBOOK</span>
               </div>
-              <div className="flex-1 overflow-y-auto pr-1 scrollbar-thin">
+              <div className="flex-1 overflow-y-auto pr-1 pb-20 scrollbar-thin">
                 <ul className="space-y-3 font-body-lg text-body-md md:text-body-lg text-on-surface-variant leading-relaxed">
                   {article.aiActions?.map((point, index) => (
                     <li key={index} className="flex gap-2 items-start text-left">

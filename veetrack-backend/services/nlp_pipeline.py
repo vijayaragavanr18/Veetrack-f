@@ -323,7 +323,7 @@ Output valid JSON only. No preamble, no other text."""
     ollama_model = os.getenv("OLLAMA_MODEL", "qwen2.5:3b")
 
     try:
-        async with httpx.AsyncClient(timeout=20) as client:
+        async with httpx.AsyncClient(timeout=45) as client:
             resp = await client.post(
                 ollama_url,
                 json={
@@ -512,13 +512,12 @@ async def process_articles(articles: list[dict]) -> list[dict]:
         # Sort by combined priority score (riskScore + trendScore) descending
         processed.sort(key=lambda x: x.get("riskScore", 0) + x.get("trendScore", 0), reverse=True)
         
-        # Concurrently enrich the top 6 articles using local Ollama model
+        # Concurrently enrich all articles using local Ollama model
         import asyncio
-        top_articles = processed[:6]
-        tasks = [analyze_single_article_llm(art, art.get("keyword", "")) for art in top_articles]
+        tasks = [analyze_single_article_llm(art, art.get("keyword", "")) for art in processed]
         llm_results = await asyncio.gather(*tasks, return_exceptions=True)
         
-        for art, res in zip(top_articles, llm_results):
+        for art, res in zip(processed, llm_results):
             if isinstance(res, dict) and res:
                 art["whatHappenedList"] = res.get("whatHappenedList")
                 art["whyItMattersList"] = res.get("whyItMattersList")
