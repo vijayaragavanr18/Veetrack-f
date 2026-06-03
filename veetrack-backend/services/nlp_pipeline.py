@@ -166,7 +166,7 @@ def get_source_tier(source_url: str) -> int:
 
 
 def compute_risk_score(text: str, keyword: str, sentiment: str,
-                       source: str, entities: list) -> int:
+                       source: str = "", entities: list = None) -> int:
     score = 0
 
     # Sentiment component (0-40 points)
@@ -190,7 +190,8 @@ def compute_risk_score(text: str, keyword: str, sentiment: str,
     score += min(hits * 7, 20)
 
     # Entity richness — more named entities = more newsworthy (0-10 points)
-    score += min(len(entities) * 2, 10)
+    entities_len = len(entities) if entities else 0
+    score += min(entities_len * 2, 10)
 
     return min(score, 100)
 
