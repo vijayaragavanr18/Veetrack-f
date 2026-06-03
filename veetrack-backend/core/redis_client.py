@@ -1,55 +1,67 @@
-"""Redis client singleton for VeeTrack backend."""
+"""
+DiskCache client singleton for VeeTrack backend.
+Replaces Redis to provide a 100% portable, self-contained architecture.
+"""
 from __future__ import annotations
 import os
+import fnmatch
+from diskcache import Cache
 
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+CACHE_DIR = os.getenv("CACHE_DIR", ".veetrack_cache")
+# Thread-safe, process-safe cache
+_cache = Cache(CACHE_DIR)
 
-# Async client (for FastAPI routes)
-_async_client = None
+class MockAsyncRedis:
+    async def get(self, key: str) -> str | None:
+        return _cache.get(key)
+        
+    async def set(self, key: str, value: str, ex: int | None = None):
+        _cache.set(key, value, expire=ex)
+        
+    async def keys(self, pattern: str) -> list[str]:
+        return [k for k in _cache.iterkeys() if fnmatch.fnmatch(k, pattern)]
+        
+    async def delete(self, *keys):
+        for k in keys:
+            _cache.delete(k)
+            
+    async def ping(self):
+        return True
+        
+    async def aclose(self):
+        # We don't close the global cache per request
+        pass
+        
+    async def publish(self, channel: str, message: str):
+        # Cross-process pub/sub not supported without Redis.
+        # Fallback polling mechanisms will take over.
+        pass
+        
+    def pubsub(self):
+        raise RuntimeError("Pub/Sub not supported by DiskCache fallback")
 
+class MockSyncRedis:
+    def get(self, key: str) -> str | None:
+        return _cache.get(key)
+        
+    def set(self, key: str, value: str, ex: int | None = None):
+        _cache.set(key, value, expire=ex)
+        
+    def keys(self, pattern: str) -> list[str]:
+        return [k for k in _cache.iterkeys() if fnmatch.fnmatch(k, pattern)]
+        
+    def delete(self, *keys):
+        for k in keys:
+            _cache.delete(k)
 
-async def get_redis():
-    """Return shared async Redis client. Creates on first call."""
-    global _async_client
-    if _async_client is None:
-        try:
-            import redis.asyncio as aioredis
-            _async_client = await aioredis.from_url(
-                REDIS_URL,
-                encoding="utf-8",
-                decode_responses=True,
-                socket_connect_timeout=5,
-                socket_timeout=5,
-            )
-        except Exception as e:
-            print(f"[Redis] Async client init failed: {e}")
-            _async_client = None
-    return _async_client
+async def get_redis() -> MockAsyncRedis:
+    """Return shared async cache client."""
+    return MockAsyncRedis()
 
-
-def get_sync_redis():
-    """Return a synchronous Redis client (for Celery tasks)."""
-    try:
-        import redis
-        return redis.from_url(
-            REDIS_URL,
-            encoding="utf-8",
-            decode_responses=True,
-            socket_connect_timeout=5,
-            socket_timeout=5,
-        )
-    except Exception as e:
-        print(f"[Redis] Sync client init failed: {e}")
-        return None
-
+def get_sync_redis() -> MockSyncRedis:
+    """Return a synchronous cache client (for Celery tasks)."""
+    return MockSyncRedis()
 
 async def redis_available() -> bool:
-    """Check if Redis is reachable."""
-    try:
-        r = await get_redis()
-        if r is None:
-            return False
-        await r.ping()
-        return True
-    except Exception:
-        return False
+    """Check if cache is reachable."""
+    return True

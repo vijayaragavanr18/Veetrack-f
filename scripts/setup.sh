@@ -9,25 +9,19 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 echo "=== VeeTrack One-Time Setup ==="
 echo ""
 
-# ── Redis ──────────────────────────────────────────────────────
-echo "[1/4] Checking Redis..."
-if ! command -v redis-cli &>/dev/null; then
-  echo "Installing Redis..."
-  sudo apt-get update -q && sudo apt-get install -y redis-server
-  sudo systemctl enable redis-server
-fi
-sudo systemctl start redis-server 2>/dev/null || true
-redis-cli ping && echo "Redis ✓" || echo "WARNING: Redis ping failed"
+# ── SQLite & DiskCache (No external broker needed) ─────────────
+echo "[1/4] Checking Database / Cache..."
+echo "Using SQLite and DiskCache natively. No Redis required ✓"
 
-# ── Ollama + qwen2.5:1.5b ──────────────────────────────────────
+# ── Ollama + qwen2.5:3b ──────────────────────────────────────
 echo ""
 echo "[2/4] Checking Ollama..."
 if ! command -v ollama &>/dev/null; then
   echo "Installing Ollama..."
   curl -fsSL https://ollama.com/install.sh | sh
 fi
-ollama list 2>/dev/null | grep -q "qwen2.5:1.5b" || ollama pull qwen2.5:1.5b
-echo "Ollama + qwen2.5:1.5b ✓"
+ollama list 2>/dev/null | grep -q "qwen2.5:3b" || ollama pull qwen2.5:3b
+echo "Ollama + qwen2.5:3b ✓"
 
 # ── Python venv + dependencies ─────────────────────────────────
 echo ""

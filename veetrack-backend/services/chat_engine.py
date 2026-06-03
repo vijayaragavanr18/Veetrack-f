@@ -1,5 +1,5 @@
 """
-Article chat engine — FAISS + MiniLM for retrieval, Ollama/Qwen2.5:1.5b for generation.
+Article chat engine — FAISS + MiniLM for retrieval, Ollama/Qwen2.5:3b for generation.
 
 Sessions are stored in Redis (30-min TTL). FAISS indices are kept in-memory
 (keyed by session_id) since they cannot be serialized to Redis directly.
@@ -17,7 +17,7 @@ import httpx
 logger = logging.getLogger(__name__)
 
 CHAT_SESSION_TTL = 1800  # 30 minutes
-OLLAMA_MODEL = "qwen2.5:1.5b"  # Always use 1.5b parameter model
+OLLAMA_MODEL = "qwen2.5:3b"  # Always use 3b parameter model
 
 # In-memory FAISS index store (complement to Redis session metadata)
 _faiss_indexes: dict[str, dict] = {}
@@ -113,7 +113,7 @@ async def start_session(
 
 async def ask_question(session_id: str, question: str) -> str:
     """
-    Answer a question about an article using RAG (FAISS + Ollama qwen2.5:1.5b).
+    Answer a question about an article using RAG (FAISS + Ollama qwen2.5:3b).
     Falls back to keyword search + context extraction.
     """
     # Get session metadata (from Redis or in-memory fallback)
@@ -138,7 +138,7 @@ async def ask_question(session_id: str, question: str) -> str:
 
     context = "\n\n".join(context_chunks)
 
-    # ── Generate answer via Ollama (qwen2.5:1.5b) ──────────
+    # ── Generate answer via Ollama (qwen2.5:3b) ──────────
     prompt = f"""You are answering questions about a news article.
 Article title: {title}
 

@@ -2,12 +2,13 @@
 from celery import Celery
 import os
 
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+BROKER_URL = os.getenv("CELERY_BROKER_URL", "sqla+sqlite:///celery_broker.sqlite")
+BACKEND_URL = os.getenv("CELERY_RESULT_BACKEND", "db+sqlite:///celery_backend.sqlite")
 
 app = Celery(
     "veetrack",
-    broker=REDIS_URL,
-    backend=REDIS_URL.replace("/0", "/1"),
+    broker=BROKER_URL,
+    backend=BACKEND_URL,
     include=["tasks.ingestion_tasks", "tasks.alert_tasks", "tasks.report_tasks"],
 )
 
