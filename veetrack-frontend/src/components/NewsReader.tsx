@@ -42,7 +42,7 @@ export const NewsReader: React.FC<NewsReaderProps> = ({
 
   const transitionCard = useCallback((direction: number) => {
     const now = Date.now();
-    if (isAnimating || now - lastVerticalSwipeTime.current < 900) return;
+    if (isAnimating || now - lastVerticalSwipeTime.current < 1200) return;
     
     const nextIndex = currentIndex + direction;
     if (nextIndex < 0 || nextIndex >= articles.length) return;
@@ -223,10 +223,13 @@ export const NewsReader: React.FC<NewsReaderProps> = ({
     } else {
       // Vertical trackpad/mouse scroll
       if (absDeltaY > 15) {
-        if (e.deltaY > 0) {
-          transitionCard(1); // Scroll down -> next page
-        } else {
-          transitionCard(-1); // Scroll up -> prev page
+        if (now - lastVerticalSwipeTime.current > 1200) {
+          if (e.deltaY > 0) {
+            transitionCard(1); // Scroll down -> next page
+          } else {
+            transitionCard(-1); // Scroll up -> prev page
+          }
+          lastVerticalSwipeTime.current = now;
         }
       }
     }

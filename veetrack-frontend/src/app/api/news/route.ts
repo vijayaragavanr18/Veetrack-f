@@ -38,8 +38,16 @@ export async function GET(request: Request) {
         // Pick an image based on category
         const imageUrl = CATEGORY_IMAGES[category as keyof typeof CATEGORY_IMAGES] || CATEGORY_IMAGES.Technology;
         
+        const urlOrHeadline = item.url || item.headline || `art-${idx}`;
+        let hash = 0;
+        for (let i = 0; i < urlOrHeadline.length; i++) {
+          hash = (hash << 5) - hash + urlOrHeadline.charCodeAt(i);
+          hash |= 0;
+        }
+        const articleId = `art-${Math.abs(hash)}`;
+
         articles.push({
-          id: `art-${idx}-${Date.now()}`,
+          id: articleId,
           category: category,
           title: item.headline || 'Untitled Article',
           summary: item.snippet || '',

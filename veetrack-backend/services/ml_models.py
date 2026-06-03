@@ -30,7 +30,7 @@ def init_models():
                 model="cardiffnlp/twitter-roberta-base-sentiment-latest",
                 top_k=1,
             )
-            print("[Models] Cardiff RoBERTa loaded ✓")
+            print("[Models] Cardiff RoBERTa loaded [OK]")
         except Exception as e:
             print(f"[Models] RoBERTa failed to load: {e}")
             raise e
@@ -40,12 +40,12 @@ def init_models():
         import spacy
         try:
             _nlp = spacy.load("en_core_web_trf")
-            print("[Models] spaCy en_core_web_trf loaded ✓")
+            print("[Models] spaCy en_core_web_trf loaded [OK]")
         except Exception as e:
             print(f"[Models] spaCy en_core_web_trf failed to load, falling back to en_core_web_sm: {e}")
             try:
                 _nlp = spacy.load("en_core_web_sm")
-                print("[Models] spaCy en_core_web_sm loaded ✓")
+                print("[Models] spaCy en_core_web_sm loaded [OK]")
             except Exception as e2:
                 print(f"[Models] spaCy en_core_web_sm failed to load: {e2}")
                 raise e2
@@ -55,7 +55,7 @@ def init_models():
         try:
             from sentence_transformers import SentenceTransformer
             _embed_model = SentenceTransformer("all-MiniLM-L6-v2")
-            print("[Models] all-MiniLM-L6-v2 loaded ✓")
+            print("[Models] all-MiniLM-L6-v2 loaded [OK]")
         except Exception as e:
             print(f"[Models] SentenceTransformer failed to load: {e}")
             raise e
@@ -65,7 +65,7 @@ def init_models():
         try:
             from sumy.summarizers.text_rank import TextRankSummarizer
             _summarizer = TextRankSummarizer()
-            print("[Models] sumy TextRank loaded ✓")
+            print("[Models] sumy TextRank loaded [OK]")
         except Exception as e:
             print(f"[Models] sumy TextRank failed to load: {e}")
             raise e

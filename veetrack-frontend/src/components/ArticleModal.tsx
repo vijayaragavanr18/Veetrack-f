@@ -120,8 +120,13 @@ export const ArticleModal: React.FC<ArticleModalProps> = ({
               {article.title}
             </h1>
 
-            {/* Metadata bar */}
+             {/* Metadata bar */}
             <div className="flex flex-wrap items-center gap-y-2 gap-x-4 text-label-sm text-on-surface-variant/80 border-y border-outline-variant/10 py-3 mb-6">
+              <div className="flex items-center gap-1.5">
+                <span className="font-bold text-primary-container uppercase tracking-wider text-[10px] px-2 py-0.5 bg-primary-container/10 border border-primary-container/25 rounded">
+                  Source: {article.source}
+                </span>
+              </div>
               <div className="flex items-center gap-1.5">
                 <User size={14} className="text-primary-container" />
                 <span className="font-semibold text-on-surface">{article.author}</span>

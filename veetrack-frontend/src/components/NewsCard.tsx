@@ -88,11 +88,11 @@ export const NewsCard: React.FC<NewsCardProps> = ({
   // This is duplicated in the top and bottom halves to create the split fold illusion.
   const renderCardContent = (isTop: boolean) => (
     <article className="card-content-full bg-surface border border-outline-variant/30 md:border-outline-variant select-none">
-      {/* Article Image (Top 45% of height when visible) */}
+      {/* Article Image (Top 38% of height when visible) */}
       <div 
         className={`w-full relative shrink-0 bg-surface-container-lowest overflow-hidden transition-all duration-500 ease-in-out ${
           activePageIndex === 0 
-            ? 'h-[45%] opacity-100' 
+            ? 'h-[38%] opacity-100' 
             : 'h-0 opacity-0 pointer-events-none'
         }`}
       >
@@ -128,7 +128,7 @@ export const NewsCard: React.FC<NewsCardProps> = ({
         </div>
       </div>
 
-      {/* Article Text Details (Bottom 55% of height on page 1, 100% on pages 2-4) */}
+      {/* Article Text Details (Bottom 62% of height on page 1, 100% on pages 2-4) */}
       <div className="flex-1 overflow-hidden relative flex flex-col pt-1 pb-8">
         <div 
           className="flex-1 flex flex-row w-[400%]"
@@ -138,41 +138,25 @@ export const NewsCard: React.FC<NewsCardProps> = ({
           }}
         >
           {/* Page 1: Summary */}
-          <div className="w-1/4 h-full px-container-padding pt-3 pb-12 flex flex-col justify-between shrink-0 box-border">
-            <div>
-              <div className="flex justify-between items-center mb-2">
-                <span className="inline-block px-2.5 py-0.5 border border-primary-container/30 text-primary-container rounded-full font-label-sm text-[11px] uppercase tracking-wider">
-                  {article.category}
-                </span>
+          <div className="w-1/4 h-full px-container-padding pt-3 pb-12 flex flex-col justify-start shrink-0 box-border overflow-hidden">
+            <div className="flex-1 flex flex-col">
+              <div className="flex justify-between items-center mb-2 shrink-0">
+                <div className="flex gap-2 items-center">
+                  <span className="inline-block px-2.5 py-0.5 border border-primary-container/30 text-primary-container rounded-full font-label-sm text-[11px] uppercase tracking-wider">
+                    {article.category}
+                  </span>
+                  <span className="text-[11px] font-mono text-on-surface-variant/50">
+                    Source: {article.source}
+                  </span>
+                </div>
                 <span className="text-[11px] font-mono text-on-surface-variant/50">1/4 • OVERVIEW</span>
               </div>
-              <h2 className="font-headline-lg text-headline-md sm:text-headline-lg-mobile md:text-headline-lg text-on-surface mb-3 line-clamp-2 leading-tight">
+              <h2 className="font-headline-lg text-headline-md sm:text-headline-lg-mobile md:text-headline-lg text-on-surface mb-2.5 line-clamp-2 leading-tight shrink-0">
                 {article.title}
               </h2>
-              <p className="font-body-lg text-body-md md:text-body-lg text-on-surface-variant line-clamp-3 md:line-clamp-4 leading-relaxed text-justify">
+              <p className="font-body-lg text-body-md md:text-body-lg text-on-surface-variant line-clamp-3 md:line-clamp-4 leading-relaxed text-justify mb-4">
                 {article.keywordSummary || article.summary}
               </p>
-            </div>
-
-            <div className="pt-2 flex justify-between items-center">
-              <button
-                onClick={!isTop ? (e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onReadFullStory(article);
-                } : undefined}
-                onMouseDown={(e) => e.stopPropagation()}
-                onTouchStart={(e) => e.stopPropagation()}
-                tabIndex={isTop ? -1 : 0}
-                disabled={isTop}
-                className={`inline-flex items-center gap-1.5 text-primary font-label-md text-label-md transition-colors ${
-                  isTop ? 'pointer-events-none opacity-50' : 'hover:text-primary-container cursor-pointer'
-                }`}
-              >
-                Read full story
-                <ArrowRight size={14} className="animate-pulse" />
-              </button>
-              <span className="text-[11px] text-on-surface-variant/40 flex items-center gap-1">Swipe left <ChevronRight size={10} /></span>
             </div>
           </div>
 
@@ -180,9 +164,14 @@ export const NewsCard: React.FC<NewsCardProps> = ({
           <div className="w-1/4 h-full px-container-padding pt-3 pb-12 flex flex-col justify-between shrink-0 box-border">
             <div className="flex flex-col flex-1 overflow-hidden">
               <div className="flex justify-between items-center mb-3 shrink-0">
-                <span className="inline-block px-2.5 py-0.5 bg-blue-500/10 border border-blue-500/30 text-blue-400 rounded-full font-label-sm text-[11px] uppercase tracking-wider">
-                  Facts & Analysis
-                </span>
+                <div className="flex gap-2 items-center">
+                  <span className="inline-block px-2.5 py-0.5 bg-blue-500/10 border border-blue-500/30 text-blue-400 rounded-full font-label-sm text-[11px] uppercase tracking-wider">
+                    Facts & Analysis
+                  </span>
+                  <span className="text-[11px] font-mono text-on-surface-variant/50">
+                    Source: {article.source}
+                  </span>
+                </div>
                 <span className="text-[11px] font-mono text-on-surface-variant/50">2/4 • THE FACTS</span>
               </div>
               <div className="flex-1 overflow-y-auto space-y-4 pr-1 scrollbar-thin">
@@ -220,9 +209,14 @@ export const NewsCard: React.FC<NewsCardProps> = ({
           <div className="w-1/4 h-full px-container-padding pt-3 pb-12 flex flex-col justify-between shrink-0 box-border">
             <div className="flex flex-col flex-1 overflow-hidden">
               <div className="flex justify-between items-center mb-3 shrink-0">
-                <span className="inline-block px-2.5 py-0.5 bg-purple-500/10 border border-purple-500/30 text-purple-400 rounded-full font-label-sm text-[11px] uppercase tracking-wider">
-                  AI Narrative
-                </span>
+                <div className="flex gap-2 items-center">
+                  <span className="inline-block px-2.5 py-0.5 bg-purple-500/10 border border-purple-500/30 text-purple-400 rounded-full font-label-sm text-[11px] uppercase tracking-wider">
+                    AI Narrative
+                  </span>
+                  <span className="text-[11px] font-mono text-on-surface-variant/50">
+                    Source: {article.source}
+                  </span>
+                </div>
                 <span className="text-[11px] font-mono text-on-surface-variant/50">3/4 • COGNITIVE POV</span>
               </div>
               <div className="flex-1 overflow-y-auto pr-1 scrollbar-thin">
@@ -241,9 +235,14 @@ export const NewsCard: React.FC<NewsCardProps> = ({
           <div className="w-1/4 h-full px-container-padding pt-3 pb-12 flex flex-col justify-between shrink-0 box-border">
             <div className="flex flex-col flex-1 overflow-hidden">
               <div className="flex justify-between items-center mb-3 shrink-0">
-                <span className="inline-block px-2.5 py-0.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-full font-label-sm text-[11px] uppercase tracking-wider">
-                  Suggested Actions
-                </span>
+                <div className="flex gap-2 items-center">
+                  <span className="inline-block px-2.5 py-0.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-full font-label-sm text-[11px] uppercase tracking-wider">
+                    Suggested Actions
+                  </span>
+                  <span className="text-[11px] font-mono text-on-surface-variant/50">
+                    Source: {article.source}
+                  </span>
+                </div>
                 <span className="text-[11px] font-mono text-on-surface-variant/50">4/4 • ACTION PLAYBOOK</span>
               </div>
               <div className="flex-1 overflow-y-auto pr-1 scrollbar-thin">
@@ -263,6 +262,27 @@ export const NewsCard: React.FC<NewsCardProps> = ({
             </div>
           </div>
         </div>
+
+        {/* Read More button directly above the Ask AI box (Page 1 only) */}
+        {activePageIndex === 0 && (
+          <div className={`absolute bottom-[76px] left-container-padding z-30 select-none ${isTop ? 'pointer-events-none' : ''}`}>
+            <button
+              onClick={!isTop ? (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onReadFullStory(article);
+              } : undefined}
+              onMouseDown={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+              tabIndex={isTop ? -1 : 0}
+              disabled={isTop}
+              className="inline-flex items-center justify-center gap-1.5 px-3 py-1 bg-surface border border-primary-container/30 hover:border-primary-container text-primary-container hover:text-primary font-bold text-[9px] uppercase tracking-wider rounded-md transition-all duration-300 transform hover:scale-[1.03] active:scale-[0.98] cursor-pointer group shadow-lg"
+            >
+              <span>Read more</span>
+              <ArrowRight size={10} className="transition-transform duration-300 group-hover:translate-x-0.5" />
+            </button>
+          </div>
+        )}
 
         {/* Compact Q&A Bot Trigger Input */}
         <div className={`absolute bottom-8 left-container-padding right-container-padding z-30 select-none ${isTop ? 'pointer-events-none' : ''}`}>
