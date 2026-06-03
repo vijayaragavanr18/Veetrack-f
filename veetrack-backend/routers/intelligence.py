@@ -68,7 +68,7 @@ No other text. No preamble. Just the 4 lines above."""
     import httpx
 
     ollama_url = os.getenv("OLLAMA_URL", "http://localhost:11434/api/generate")
-    ollama_model = os.getenv("OLLAMA_MODEL", "qwen2.5:1.5b")
+    ollama_model = os.getenv("OLLAMA_MODEL", "qwen2.5:3b")
 
     result = {
         "happened": "Analysis unavailable.",
@@ -78,7 +78,7 @@ No other text. No preamble. Just the 4 lines above."""
     }
 
     try:
-        async with httpx.AsyncClient(timeout=30) as client:
+        async with httpx.AsyncClient(timeout=300.0) as client:
             resp = await client.post(
                 ollama_url,
                 json={
@@ -90,21 +90,103 @@ No other text. No preamble. Just the 4 lines above."""
             )
             if resp.status_code == 200:
                 answer = resp.json().get("response", "").strip()
+                # Robust parsing (case insensitive)
                 for line in answer.split("\n"):
                     line = line.strip()
-                    if line.startswith("WHAT HAPPENED:"):
-                        result["happened"] = line.replace("WHAT HAPPENED:", "").strip()
-                    elif line.startswith("WHY IT MATTERS:"):
-                        result["whyItMatters"] = line.replace("WHY IT MATTERS:", "").strip()
-                    elif line.startswith("RECOMMENDED ACTION:"):
-                        result["recommendedAction"] = line.replace("RECOMMENDED ACTION:", "").strip()
-                    elif line.startswith("RISK LEVEL:"):
-                        result["riskLevel"] = line.replace("RISK LEVEL:", "").strip()
+                    upper_line = line.upper()
+                    if "WHAT HAPPENED:" in upper_line:
+                        result["happened"] = line.split(":", 1)[1].strip().strip("*").strip()
+                    elif "WHY IT MATTERS:" in upper_line:
+                        result["whyItMatters"] = line.split(":", 1)[1].strip().strip("*").strip()
+                    elif "RECOMMENDED ACTION:" in upper_line:
+                        result["recommendedAction"] = line.split(":", 1)[1].strip().strip("*").strip()
+                    elif "RISK LEVEL:" in upper_line:
+                        result["riskLevel"] = line.split(":", 1)[1].strip().strip("*").strip()
+                
+                # Fallback if the LLM didn't use the prefixes properly but generated text
+                if result["happened"] == "Analysis unavailable." and len(answer) > 50:
+                    result["happened"] = answer[:200] + "..."
+            else:
+                logger.error(f"Ollama returned {resp.status_code}")
     except Exception as e:
-        logger.error(f"Ollama executive brief failed: {e}")
+        logger.error(f"Ollama executive brief failed: {type(e).__name__} - {e}")
 
     return result
 
+
+async def _generate_article_analysis_llm(article: dict) -> dict:
+    import os
+    import httpx
+    
+    title = article.get("title", "")
+    content = article.get("body_text", "")
+    if not content or len(content) < 50:
+        content = article.get("summary", title)
+        
+    prompt = f"""You are an expert intelligence analyst. Provide a deep, highly elaborate analysis of the following article to fill a full page report.
+
+ARTICLE: {title}
+{content[:1500]}
+
+Write exactly three detailed sections. Make each section a comprehensive, very elaborate paragraph (at least 4-5 long sentences) so it fills the screen with rich insights.
+
+Format your response exactly like this:
+
+WHAT HAPPENED:
+[Extremely elaborate paragraph detailing the core events, background context, and specific facts.]
+
+WHY IT MATTERS:
+[Extremely elaborate paragraph explaining the strategic business impact, market consequences, and deep implications.]
+
+AI NARRATIVE:
+[A rich, storytelling-style cognitive POV narrative that connects this event to broader industry trends and gives a comprehensive, immersive summary.]
+"""
+
+    ollama_url = os.getenv("OLLAMA_URL", "http://localhost:11434/api/generate")
+    ollama_model = os.getenv("OLLAMA_MODEL", "qwen2.5:3b")
+
+    result = {
+        "whatHappened": "",
+        "whyItMatters": "",
+        "aiNarrative": ""
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=300.0) as client:
+            resp = await client.post(
+                ollama_url,
+                json={
+                    "model": ollama_model,
+                    "prompt": prompt,
+                    "stream": False,
+                    "options": {"temperature": 0.4, "num_predict": 700},
+                },
+            )
+            if resp.status_code == 200:
+                answer = resp.json().get("response", "").strip()
+                import re
+                
+                wh_match = re.search(r'WHAT HAPPENED:(.*?)(?=WHY IT MATTERS:|$)', answer, re.DOTALL | re.IGNORECASE)
+                wm_match = re.search(r'WHY IT MATTERS:(.*?)(?=AI NARRATIVE:|$)', answer, re.DOTALL | re.IGNORECASE)
+                an_match = re.search(r'AI NARRATIVE:(.*?)$', answer, re.DOTALL | re.IGNORECASE)
+                
+                if wh_match: result["whatHappened"] = wh_match.group(1).strip().strip("*")
+                if wm_match: result["whyItMatters"] = wm_match.group(1).strip().strip("*")
+                if an_match: result["aiNarrative"] = an_match.group(1).strip().strip("*")
+                
+                # Fallback if markdown or weird formatting was used
+                if not result["whatHappened"] and len(answer) > 100:
+                    parts = answer.split('\n\n')
+                    if len(parts) >= 3:
+                        result["whatHappened"] = parts[0]
+                        result["whyItMatters"] = parts[1]
+                        result["aiNarrative"] = parts[2]
+            else:
+                logger.error(f"Ollama returned {resp.status_code}")
+    except Exception as e:
+        logger.error(f"Ollama article analysis failed: {type(e).__name__} - {e}")
+
+    return result
 
 @router.post("/api/intelligence")
 async def get_intelligence(req: IntelligenceRequest):
@@ -179,6 +261,19 @@ async def get_intelligence(req: IntelligenceRequest):
 
     # Executive brief
     llm_brief = await _generate_executive_brief_llm(keyword, keyword, articles)
+    
+    # Deep LLM Analysis for top articles
+    import asyncio
+    top_articles = articles[:5]
+    analysis_tasks = [_generate_article_analysis_llm(a) for a in top_articles]
+    analyses = await asyncio.gather(*analysis_tasks, return_exceptions=True)
+    
+    for i, a in enumerate(top_articles):
+        ans = analyses[i]
+        if isinstance(ans, dict):
+            a["llm_what_happened"] = ans.get("whatHappened", "")
+            a["llm_why_it_matters"] = ans.get("whyItMatters", "")
+            a["llm_ai_narrative"] = ans.get("aiNarrative", "")
 
     # Helper to map backend article to frontend ScoredArticle shape
     def map_to_scored_article(a: dict, section: str = "company") -> dict:
@@ -215,6 +310,9 @@ async def get_intelligence(req: IntelligenceRequest):
             "sarcasmFlag": False,
             "sarcasmReason": "",
             "businessImpact": a.get("why_it_matters", a.get("whyItMatters", "")),
+            "llm_what_happened": a.get("llm_what_happened", ""),
+            "llm_why_it_matters": a.get("llm_why_it_matters", ""),
+            "llm_ai_narrative": a.get("llm_ai_narrative", ""),
             "tone": "Informative",
             "keyQuote": "",
             "relevanceScore": a.get("risk_score", a.get("riskScore", 0)),

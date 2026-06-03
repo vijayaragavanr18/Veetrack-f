@@ -41,12 +41,12 @@ nltk.download('punkt_tab', quiet=True)
 nltk.download('stopwords', quiet=True)
 " 2>/dev/null || true
 
-# Ollama / qwen2.5:1.5b
+# Ollama / qwen2.5:3b
 echo "Checking Ollama..."
 if command -v ollama &>/dev/null; then
-  ollama list 2>/dev/null | grep -q "qwen2.5:1.5b" || ollama pull qwen2.5:1.5b
+  ollama list 2>/dev/null | grep -q "qwen2.5:3b" || ollama pull qwen2.5:3b
   pgrep -x ollama >/dev/null 2>&1 || (ollama serve &>/tmp/ollama.log & sleep 2)
-  echo "Ollama ready (qwen2.5:1.5b) ✓"
+  echo "Ollama ready (qwen2.5:3b) ✓"
 else
   echo "WARNING: Ollama not found. Chat falls back to context extraction."
   echo "         Install: curl -fsSL https://ollama.com/install.sh | sh"
