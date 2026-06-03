@@ -324,6 +324,27 @@ Output valid JSON only. No preamble, no other text."""
     ollama_url = os.getenv("OLLAMA_URL", "http://localhost:11434/api/generate")
     ollama_model = os.getenv("OLLAMA_MODEL", "qwen2.5:3b")
 
+    # Standardize professional fallbacks
+    fallback_sentiment = article.get("sentiment", "neutral")
+    if isinstance(fallback_sentiment, dict):
+        fallback_sentiment = fallback_sentiment.get("label", "neutral")
+        
+    fallback_what = [
+        f"{title}.",
+        f"The development is reported by {source} and focuses on key events affecting {keyword}.",
+        f"Initial media sentiment tone is evaluated as predominantly {fallback_sentiment}."
+    ]
+    fallback_why = [
+        f"This event is significant due to its direct association with {keyword}.",
+        f"The current sentiment tone of the news is {fallback_sentiment}, which could impact corporate and PR strategy.",
+        f"Ongoing monitoring of this development is advised to trace potential long-term industry impacts."
+    ]
+    fallback_actions = [
+        f"Coordinate with monitoring teams to track subsequent coverage from {source}.",
+        "Analyze external stakeholder reaction to assess if proactive statements are required.",
+        "Update internal executive briefs with these latest developments."
+    ]
+
     try:
         async with httpx.AsyncClient(timeout=45) as client:
             resp = await client.post(
@@ -352,35 +373,89 @@ Output valid JSON only. No preamble, no other text."""
                 for original, replacement in replacements.items():
                     resp_text = resp_text.replace(original, replacement)
                 
-                # Extract JSON using regex if wrapped in backticks or markdown code blocks
+                # Helper to clean individual items of bullets, numbers, and quotes
                 import re
-                json_match = re.search(r"\{.*\}", resp_text, re.DOTALL)
-                if json_match:
-                    resp_text = json_match.group(0)
-                    
-                data = json.loads(resp_text)
-                
-                # Get lists using all common key variations
-                raw_what = next((data.get(k) for k in ("what_happened", "whatHappened", "what happened", "whathappened") if k in data), [])
-                raw_why = next((data.get(k) for k in ("why_it_matters", "whyItMatters", "why it matters", "whyitmatters") if k in data), [])
-                raw_actions = next((data.get(k) for k in ("suggested_actions", "suggestedActions", "suggested actions", "suggestedactionlist", "suggested_action_list") if k in data), [])
-                
-                # Ensure they are lists of clean strings without markdown asterisks
                 def clean_items(lst):
                     if not isinstance(lst, list):
                         return []
-                    return [str(item).replace("*", "").strip() for item in lst if item]
+                    cleaned = []
+                    for item in lst:
+                        if item:
+                            val = str(item)
+                            # Strip asterisks
+                            val = val.replace("*", "")
+                            # Strip leading numbers/bullets (e.g. "1. ", "- ", "• ", "* ")
+                            val = re.sub(r'^(?:\d+[\.\)]\s*|[\-\u2022\u25cf\*\+]\s*)', '', val)
+                            val = val.strip()
+                            # Strip matching outer quotes if LLM added them
+                            if len(val) >= 2 and ((val[0] == '"' and val[-1] == '"') or (val[0] == "'" and val[-1] == "'")):
+                                val = val[1:-1].strip()
+                            if val:
+                                cleaned.append(val)
+                    return cleaned
+
+                try:
+                    # Extract JSON using regex if wrapped in backticks or markdown code blocks
+                    json_match = re.search(r"\{.*\}", resp_text, re.DOTALL)
+                    if json_match:
+                        resp_text = json_match.group(0)
+                        
+                    data = json.loads(resp_text)
                     
-                return {
-                    "whatHappenedList": clean_items(raw_what),
-                    "whyItMattersList": clean_items(raw_why),
-                    "suggestedActionList": clean_items(raw_actions),
+                    # Get lists using all common key variations
+                    raw_what = next((data.get(k) for k in ("what_happened", "whatHappened", "what happened", "whathappened") if k in data), [])
+                    raw_why = next((data.get(k) for k in ("why_it_matters", "whyItMatters", "why it matters", "whyitmatters") if k in data), [])
+                    raw_actions = next((data.get(k) for k in ("suggested_actions", "suggestedActions", "suggested actions", "suggestedactionlist", "suggested_action_list") if k in data), [])
+                    
+                    result = {
+                        "whatHappenedList": clean_items(raw_what),
+                        "whyItMattersList": clean_items(raw_why),
+                        "suggestedActionList": clean_items(raw_actions),
+                    }
+                    if len(result["whatHappenedList"]) >= 2 and len(result["whyItMattersList"]) >= 2:
+                        return result
+                except Exception as json_err:
+                    logger.warning(f"Ollama JSON parsing failed, attempting text extraction fallback: {json_err}")
+                
+                # Fallback text extraction if JSON parsing failed or fields are missing
+                sections = {"whatHappenedList": [], "whyItMattersList": [], "suggestedActionList": []}
+                current_section = None
+                lines = resp_text.split('\n')
+                for line in lines:
+                    line_str = line.strip()
+                    if not line_str:
+                        continue
+                    line_lower = line_str.lower()
+                    if "what_happened" in line_lower or "what happened" in line_lower:
+                        current_section = "whatHappenedList"
+                        continue
+                    elif "why_it_matters" in line_lower or "why it matters" in line_lower:
+                        current_section = "whyItMattersList"
+                        continue
+                    elif "suggested_actions" in line_lower or "suggested actions" in line_lower or "suggested_action" in line_lower:
+                        current_section = "suggestedActionList"
+                        continue
+                    
+                    # If line looks like a bullet or list item
+                    if current_section and (line_str.startswith('-') or line_str.startswith('*') or line_str.startswith('•') or (line_str[0].isdigit() and len(line_str) > 1 and (line_str[1] == '.' or line_str[1] == ')'))):
+                        sections[current_section].append(line_str)
+                
+                cleaned_sections = {
+                    "whatHappenedList": clean_items(sections["whatHappenedList"]),
+                    "whyItMattersList": clean_items(sections["whyItMattersList"]),
+                    "suggestedActionList": clean_items(sections["suggestedActionList"]),
                 }
+                if len(cleaned_sections["whatHappenedList"]) >= 2 and len(cleaned_sections["whyItMattersList"]) >= 2:
+                    return cleaned_sections
     except Exception as e:
         logger.error(f"Ollama article analysis failed: {e}")
     
-    # Fallback empty lists if LLM fails
-    return {}
+    # Return structured fallback if LLM is unavailable or fails completely
+    return {
+        "whatHappenedList": fallback_what,
+        "whyItMattersList": fallback_why,
+        "suggestedActionList": fallback_actions,
+    }
 
 
 # ────────────────────────────────────────────────────────────────
