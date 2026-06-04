@@ -21,6 +21,7 @@ OLLAMA_MODEL = "qwen2.5:3b"  # Always use 3b parameter model
 
 # In-memory FAISS index store (complement to Redis session metadata)
 _faiss_indexes: dict[str, dict] = {}
+_session_metadata: dict[str, dict] = {}
 
 
 def _chunk_text(text: str, size: int = 256, overlap: int = 50) -> list[str]:
@@ -39,7 +40,8 @@ def _chunk_text(text: str, size: int = 256, overlap: int = 50) -> list[str]:
 
 
 async def _save_session_meta(session_id: str, data: dict) -> None:
-    """Save session metadata (title, chunks) to Redis."""
+    """Save session metadata (title, chunks) to Redis and in-memory backup."""
+    _session_metadata[session_id] = data
     try:
         from core.redis_client import get_redis
         r = await get_redis()
@@ -50,20 +52,22 @@ async def _save_session_meta(session_id: str, data: dict) -> None:
 
 
 async def _get_session_meta(session_id: str) -> dict | None:
-    """Retrieve session metadata from Redis."""
+    """Retrieve session metadata (from Redis with in-memory fallback)."""
     try:
         from core.redis_client import get_redis
         r = await get_redis()
         if r:
             val = await r.get(f"chat:{session_id}")
-            return json.loads(val) if val else None
+            if val:
+                return json.loads(val)
     except Exception:
         pass
-    return None
+    return _session_metadata.get(session_id)
 
 
 async def _delete_session_meta(session_id: str) -> None:
-    """Delete session metadata from Redis."""
+    """Delete session metadata from Redis and memory."""
+    _session_metadata.pop(session_id, None)
     try:
         from core.redis_client import get_redis
         r = await get_redis()
@@ -84,7 +88,9 @@ async def start_session(
     Chunks the article text and builds a FAISS index for retrieval.
     Falls back to keyword-only search if FAISS/MiniLM unavailable.
     """
-    chunks = _chunk_text(article_text)
+    import re
+    cleaned_text = re.sub(r"<[^>]+>", "", article_text).strip()
+    chunks = _chunk_text(cleaned_text)
     meta = {"chunks": chunks, "title": article_title}
 
     try:
@@ -134,7 +140,8 @@ async def ask_question(session_id: str, question: str) -> str:
         _, indices = faiss_data["index"].search(q_embed, k=min(3, len(chunks)))
         context_chunks = [chunks[i] for i in indices[0] if i < len(chunks)]
     else:
-        return "RAG models unavailable for retrieval."
+        # Fallback to using raw text chunks directly if RAG/FAISS fails
+        context_chunks = chunks[:8]
 
     context = "\n\n".join(context_chunks)
 

@@ -74,38 +74,51 @@ export default function Home() {
   const [searchKeyword, setSearchKeyword] = useState(null);
 
   // User interactions state (saved & read lists)
-  const [savedIds, setSavedIds] = useState([]);
-  const [readIds, setReadIds] = useState([]);
-  const [selectedCategory, setSelectedCategory] = useState(null);
+  const [savedIds, setSavedIds] = useState<string[]>([]);
+  const [savedArticles, setSavedArticles] = useState<Article[]>([]);
+  const [readIds, setReadIds] = useState<string[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
   // Hydrate states from localStorage safely
   useEffect(() => {
-    const saved = localStorage.getItem('veetrack_saved_ids');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        setTimeout(() => setSavedIds(parsed), 0);
-      } catch {
-
-        // Ignored
-      }}
     const read = localStorage.getItem('veetrack_read_ids');
-    if (read) {
-      try {
-        const parsed = JSON.parse(read);
-        setTimeout(() => setReadIds(parsed), 0);
-      } catch {
+if (read) {
+  try {
+    const parsed = JSON.parse(read);
+    setTimeout(() => setReadIds(parsed), 0);
+  } catch {
+    // Ignored
+  }
+}
+}, []);
 
-        // Ignored
-      }}
-  }, []);
-  const saveToStorage = (key, value) => {
-    localStorage.setItem(key, JSON.stringify(value));
-  };
-  const toggleSaveArticle = (articleId) => {
-    const updated = savedIds.includes(articleId) ? savedIds.filter((id) => id !== articleId) : [...savedIds, articleId];
-    setSavedIds(updated);
-    saveToStorage('veetrack_saved_ids', updated);
+const saveToStorage = (key: string, value: any) => {
+  localStorage.setItem(key, JSON.stringify(value));
+};
+
+
+  const toggleSaveArticle = (articleId: string) => {
+    const isAlreadySaved = savedIds.includes(articleId);
+    let updatedIds: string[];
+    let updatedArticles: Article[];
+
+    if (isAlreadySaved) {
+      updatedIds = savedIds.filter((id) => id !== articleId);
+      updatedArticles = savedArticles.filter((art) => art.id !== articleId);
+    } else {
+      updatedIds = [...savedIds, articleId];
+      // Find dynamic article or fallback to mockArticles
+      const articleToSave = currentArticles.find((art) => art.id === articleId) 
+        || mockArticles.find((art) => art.id === articleId);
+      updatedArticles = articleToSave 
+        ? [...savedArticles, articleToSave] 
+        : savedArticles;
+    }
+
+    setSavedIds(updatedIds);
+    setSavedArticles(updatedArticles);
+    saveToStorage('veetrack_saved_ids', updatedIds);
+    saveToStorage('veetrack_saved_articles', updatedArticles);
   };
   const markArticleAsRead = (articleId) => {
     if (!readIds.includes(articleId)) {
@@ -249,7 +262,7 @@ export default function Home() {
   // Filter logic based on active tab
   const getFilteredArticles = () => {
     if (activeTab === 'saved') {
-      return currentArticles.filter((art) => savedIds.includes(art.id));
+      return savedArticles;
     }
     if (activeTab === 'explore' && selectedCategory) {
       return currentArticles.filter((art) => art.category.toLowerCase() === selectedCategory.toLowerCase());

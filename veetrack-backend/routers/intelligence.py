@@ -55,17 +55,29 @@ Analyze these {len(articles)} recent news articles about "{keyword}".
 ARTICLES:
 {context}
 
-Write a concise intelligence brief in this EXACT format — 3 bullets only:
+Write an extremely detailed, analytical, and comprehensive executive media intelligence brief of at least 500 to 1000 words. Use a professional, executive tone.
 
-WHAT HAPPENED: [one sentence — the key fact]
-WHY IT MATTERS: [one sentence — business impact for {client_name}]
-RECOMMENDED ACTION: [one sentence — what the PR/comms team should do now]
-RISK LEVEL: [LOW / MEDIUM / HIGH / CRITICAL]
+IMPORTANT: Do not use any markdown formatting, asterisks (*), bold markup, or bullet characters in your narrative. Output clean, plain paragraphs only.
 
-No other text. No preamble. Just the 4 lines above."""
+You must structure your brief using these EXACT section headers:
+
+WHAT HAPPENED:
+[Provide a highly detailed, 2-3 paragraph breakdown of the main events, narrative arcs, timelines, and facts across all of the articles. Synthesize the core news cycle deeply.]
+
+WHY IT MATTERS:
+[Provide a highly detailed, 2-3 paragraph analytical assessment of the business impact, public sentiment trends, market positioning implications, and long-term consequences for {client_name}.]
+
+RECOMMENDED ACTION:
+[Provide a highly detailed, 2-3 paragraph communication action playbook. Specify concrete steps for the PR/comms team, risk mitigation strategies, and response templates or engagement opportunities.]
+
+RISK LEVEL:
+[Choose one: LOW / MEDIUM / HIGH / CRITICAL]
+
+Do not include any preamble, introduction, or conversational filler. Start directly with "WHAT HAPPENED:"."""
 
     import os
     import httpx
+    import re
 
     ollama_url = os.getenv("OLLAMA_URL", "http://localhost:11434/api/generate")
     ollama_model = os.getenv("OLLAMA_MODEL", "qwen2.5:3b")
@@ -85,29 +97,38 @@ No other text. No preamble. Just the 4 lines above."""
                     "model": ollama_model,
                     "prompt": prompt,
                     "stream": False,
-                    "options": {"temperature": 0.2, "num_predict": 300},
+                    "options": {"temperature": 0.2, "num_predict": 1500},
                 },
             )
             if resp.status_code == 200:
                 answer = resp.json().get("response", "").strip()
-                # Robust parsing (case insensitive)
-                for line in answer.split("\n"):
-                    line = line.strip()
-                    upper_line = line.upper()
-                    if "WHAT HAPPENED:" in upper_line:
-                        result["happened"] = line.split(":", 1)[1].strip().strip("*").strip()
-                    elif "WHY IT MATTERS:" in upper_line:
-                        result["whyItMatters"] = line.split(":", 1)[1].strip().strip("*").strip()
-                    elif "RECOMMENDED ACTION:" in upper_line:
-                        result["recommendedAction"] = line.split(":", 1)[1].strip().strip("*").strip()
-                    elif "RISK LEVEL:" in upper_line:
-                        result["riskLevel"] = line.split(":", 1)[1].strip().strip("*").strip()
                 
-                # Fallback if the LLM didn't use the prefixes properly but generated text
-                if result["happened"] == "Analysis unavailable." and len(answer) > 50:
-                    result["happened"] = answer[:200] + "..."
-            else:
-                logger.error(f"Ollama returned {resp.status_code}")
+                # Replace curly quotes and smart punctuation to prevent encoding issues
+                replacements = {
+                    "’": "'",
+                    "‘": "'",
+                    "“": '"',
+                    "”": '"',
+                    "–": "-",
+                    "—": "-",
+                    "…": "...",
+                }
+                for original, replacement in replacements.items():
+                    answer = answer.replace(original, replacement)
+                
+                happened_match = re.search(r"WHAT HAPPENED:(.*?)(?=WHY IT MATTERS:|$)", answer, re.DOTALL | re.IGNORECASE)
+                why_match = re.search(r"WHY IT MATTERS:(.*?)(?=RECOMMENDED ACTION:|$)", answer, re.DOTALL | re.IGNORECASE)
+                action_match = re.search(r"RECOMMENDED ACTION:(.*?)(?=RISK LEVEL:|$)", answer, re.DOTALL | re.IGNORECASE)
+                risk_match = re.search(r"RISK LEVEL:(.*?)$", answer, re.DOTALL | re.IGNORECASE)
+                
+                if happened_match:
+                    result["happened"] = happened_match.group(1).replace("*", "").strip()
+                if why_match:
+                    result["whyItMatters"] = why_match.group(1).replace("*", "").strip()
+                if action_match:
+                    result["recommendedAction"] = action_match.group(1).replace("*", "").strip()
+                if risk_match:
+                    result["riskLevel"] = risk_match.group(1).replace("*", "").strip().upper()
     except Exception as e:
         logger.error(f"Ollama executive brief failed: {type(e).__name__} - {e}")
 
@@ -294,7 +315,7 @@ async def get_intelligence(req: IntelligenceRequest):
             "headline": a.get("title", a.get("headline", "Untitled")),
             "url": a.get("url", ""),
             "snippet": a.get("summary", ""),
-            "fullContent": a.get("body_text", ""),
+            "fullContent": a.get("fullContent", a.get("body_text", "")),
             "publication": a.get("source", a.get("origin", "Unknown")),
             "edition": "Online",
             "date": a.get("published_at", a.get("timestamp", "")),
@@ -317,7 +338,10 @@ async def get_intelligence(req: IntelligenceRequest):
             "keyQuote": "",
             "relevanceScore": a.get("risk_score", a.get("riskScore", 0)),
             "relevanceExplanation": a.get("suggested_action", a.get("suggestedAction", "")),
-            "isPriority": a.get("trend_score", a.get("trendScore", 0)) >= 60
+            "isPriority": a.get("trend_score", a.get("trendScore", 0)) >= 60,
+            "whatHappenedList": a.get("whatHappenedList"),
+            "whyItMattersList": a.get("whyItMattersList"),
+            "suggestedActionList": a.get("suggestedActionList"),
         }
 
     scored_articles = [map_to_scored_article(a) for a in articles]

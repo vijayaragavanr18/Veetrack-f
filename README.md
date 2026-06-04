@@ -22,22 +22,22 @@ Because privacy is paramount, **VeeTrack relies entirely on open-source AI model
     *   **Sentiment Analysis:** Uses Cardiff NLP's Twitter RoBERTa model to detect positive, negative, and neutral tones.
     *   **Content Deduplication:** Uses `datasketch` (MinHash LSH) to identify near-duplicate articles and reduce noise.
     *   **Narrative Clustering:** Groups thousands of articles into readable "trends" using `HDBSCAN` and `SentenceTransformers`.
-*   **Deep AI Narrative Generation:** Prompts a local Large Language Model (`qwen2.5:3b` via Ollama) concurrently to output elaborate, full-page cognitive POV stories for every single article, mapping out exact facts and strategic business impacts.
-*   **Modern 3D Interface:** A highly visual, gesture-driven frontend reader built with Vite, React 19, and Tailwind CSS.
-*   **Zero-Config Local Execution:** No heavy Docker requirements. Natively compatible with both Linux and Windows.
+*   **Executive Brief Generation:** Prompts a local Large Language Model (`qwen2.5:3b` via Ollama) to output strict, 4-bullet executive reports (What Happened, Why It Matters, Recommended Action, Risk Level).
+*   **Modern 3D Interface:** A highly visual, gesture-driven frontend reader built with Next.js 15, React 19, and Tailwind CSS.
+*   **Zero-Config Local Execution:** No heavy Docker requirements for local development.
 
 ---
 
 ## 🛠 Tech Stack
 
 ### Frontend (User Interface)
-*   **Framework:** Vite, React 19 (Pure Standard JavaScript SPA)
+*   **Framework:** Next.js (App Router), React 19
 *   **Styling:** Tailwind CSS v4, Lucide Icons
-*   **Architecture:** High-performance "Thin Client" architecture connecting directly to the FastAPI backend.
+*   **Architecture:** Backend-For-Frontend (BFF) Proxy pattern (`/api/news`, `/api/chat`) to shield backend API keys and simplify client-side state.
 
 ### Backend (AI & Logic)
 *   **Framework:** Python 3.12, FastAPI
-*   **Databases:** SQLite (Celery Broker), DiskCache (Caching), FAISS (for vector retrieval during chat sessions).
+*   **Databases:** Redis (for Celery background tasks & caching), FAISS (for vector retrieval during chat sessions).
 *   **Task Queues:** Celery (background news fetching loop).
 *   **Machine Learning:** PyTorch, HuggingFace Transformers, spaCy, scikit-learn.
 
@@ -45,21 +45,22 @@ Because privacy is paramount, **VeeTrack relies entirely on open-source AI model
 
 ## 💻 Getting Started (Local Development)
 
-VeeTrack has been optimized to run completely natively on your machine without needing Docker or Redis.
+VeeTrack has been optimized to run completely natively on your machine without needing Docker.
 
 ### 1. Prerequisites
 Ensure you have the following installed on your system:
 *   **Python 3.10+** (and `pip`)
 *   **Node.js 18+** (and `npm`)
-*   **Ollama** (Required for AI Narrative generation)
+*   **Redis** (Optional, if you want background Celery tasks to run)
+*   **Ollama** (Optional, if you want LLM-generated executive summaries)
 
 ### 2. Environment Setup
 Create a `.env` file in the root directory:
 
 ```env
 # Network configuration (Crucial: Use 127.0.0.1 instead of localhost for Node IPv6 compatibility)
-VITE_BACKEND_URL=http://127.0.0.1:8000
 BACKEND_URL=http://127.0.0.1:8000
+FRONTEND_URL=http://127.0.0.1:3000
 
 # Optional: Local LLM Configuration
 OLLAMA_URL=http://127.0.0.1:11434/api/generate
@@ -67,18 +68,11 @@ OLLAMA_MODEL=qwen2.5:3b
 ```
 
 ### 3. Installation & Boot Up
-You can install dependencies and start both the FastAPI backend and the Vite frontend concurrently with a single command.
+You can install dependencies and start both the FastAPI backend and the Next.js frontend concurrently with a single command:
 
-**For Linux/Mac Users:**
 ```bash
-npm run setup   # One-time installation of Python environments and ML models
-npm run fresh   # Starts the backend and frontend concurrently
-```
-
-**For Windows Users:**
-```cmd
-npm run setup:win   # One-time installation of Python environments and ML models
-npm run fresh:win   # Starts the backend and frontend concurrently
+# Installs Python venv, backend dependencies, frontend NPM packages, and boots the servers.
+npm run fresh
 ```
 
 *The first time you run this, the backend will automatically download the necessary HuggingFace NLP models to your local cache. This may take a few minutes depending on your internet connection.*
@@ -93,7 +87,7 @@ npm run fresh:win   # Starts the backend and frontend concurrently
 
 ```text
 veetrack-f1/
-├── package.json           # Root scripts (npm run fresh, setup:win)
+├── package.json           # Root scripts (npm run fresh)
 ├── requirements.txt       # Unified Python dependencies
 ├── .env                   # Environment variables
 ├── veetrack-backend/      # Python FastAPI Microservice
@@ -101,12 +95,10 @@ veetrack-f1/
 │   ├── routers/           # API endpoints (intelligence, chat, feed)
 │   ├── services/          # Business logic & ML pipelines
 │   └── tasks/             # Celery background workers
-├── veetrack-frontend/     # Vite React SPA Web App
-│   ├── index.html         # Main entrypoint
-│   ├── vite.config.js     # Vite bundler config
-│   ├── src/               # React JSX source files
+├── veetrack-frontend/     # Next.js Web App
+│   ├── src/app/           # React Pages & API Proxy Routes
 │   └── src/components/    # Reusable UI components
-└── scripts/               # Helper bash and batch scripts for Windows/Linux
+└── scripts/               # Helper bash scripts
 ```
 
 ---
