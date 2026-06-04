@@ -7,24 +7,18 @@ set FRONTEND_DIR=%ROOT_DIR%\veetrack-frontend
 echo === VeeTrack One-Time Setup (Windows) ===
 echo.
 
-echo [1/4] Checking Redis...
-echo NOTE: Redis is not natively supported on Windows.
-echo Please run it via Docker Desktop, WSL2, or use Memurai for Windows.
+echo [1/4] Checking Database / Cache...
+echo Using SQLite and DiskCache natively. No Redis required ✓
 echo.
 
 echo [2/4] Checking Ollama...
 echo Ensure Ollama for Windows is installed from https://ollama.com/download
-where ollama >nul 2>nul
-if %errorlevel% equ 0 (
-    ollama list 2>nul | findstr "qwen2.5:3b" >nul
-    if errorlevel 1 (
-        echo Pulling qwen2.5:3b model...
-        ollama pull qwen2.5:3b
-    ) else (
-        echo Ollama + qwen2.5:3b [OK]
-    )
+ollama list 2>nul | findstr "qwen2.5:3b" >nul
+if errorlevel 1 (
+    echo Pulling qwen2.5:3b model...
+    ollama pull qwen2.5:3b
 ) else (
-    echo WARNING: Ollama not found.
+    echo Ollama + qwen2.5:3b [OK]
 )
 echo.
 

@@ -57,11 +57,11 @@ async def lifespan(app: FastAPI):
         app.state.redis = r
         is_up = await redis_available()
         if is_up:
-            logger.info("Redis connected ✓")
+            logger.info("DiskCache (Local DB) connected ✓")
         else:
-            logger.warning("Redis unavailable — trend history will be in-memory only")
+            logger.warning("Local Cache unavailable — trend history will be in-memory only")
     except Exception as e:
-        logger.warning(f"Redis startup error: {e} — running without Redis")
+        logger.warning(f"Cache startup error: {e}")
         app.state.redis = None
     yield
     # Shutdown

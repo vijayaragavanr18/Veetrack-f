@@ -9,15 +9,9 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 echo "=== VeeTrack One-Time Setup ==="
 echo ""
 
-# ── Redis ──────────────────────────────────────────────────────
-echo "[1/4] Checking Redis..."
-if ! command -v redis-cli &>/dev/null; then
-  echo "Installing Redis..."
-  sudo apt-get update -q && sudo apt-get install -y redis-server
-  sudo systemctl enable redis-server
-fi
-sudo systemctl start redis-server 2>/dev/null || true
-redis-cli ping && echo "Redis ✓" || echo "WARNING: Redis ping failed"
+# ── SQLite & DiskCache (No external broker needed) ─────────────
+echo "[1/4] Checking Database / Cache..."
+echo "Using SQLite and DiskCache natively. No Redis required ✓"
 
 # ── Ollama + qwen2.5:3b ──────────────────────────────────────
 echo ""

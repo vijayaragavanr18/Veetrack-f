@@ -1,54 +1,59 @@
 @import "tailwindcss";
 
 @theme {
-  /* High-Contrast Noir News Palette */
-  --color-on-error-container: #ffdad6;
-  --color-on-tertiary-container: #5e5f5f;
-  --color-on-primary-container: #705e00;
-  --color-background: #131313;
-  --color-on-tertiary-fixed: #1a1c1c;
-  --color-on-background: #e2e2e2;
-  --color-on-primary-fixed: #221b00;
-  --color-secondary: #c8c6c5;
-  --color-primary-fixed: #ffe16d;
-  --color-inverse-primary: #705d00;
-  --color-tertiary-fixed: #e3e2e2;
-  --color-on-primary: #3a3000;
-  --color-tertiary: #f7f6f6;
-  --color-inverse-surface: #e2e2e2;
-  --color-error: #ffb4ab;
-  --color-on-secondary-fixed: #1c1b1b;
-  --color-on-error: #690005;
-  --color-surface-tint: #e9c400;
-  --color-on-surface: #e2e2e2;
-  --color-error-container: #93000a;
-  --color-surface-variant: #353535;
-  --color-on-secondary-container: #bab8b7;
-  --color-surface-dim: #131313;
-  --color-on-secondary: #313030;
-  --color-on-secondary-fixed-variant: #474646;
-  --color-surface-container-highest: #353535;
-  --color-tertiary-container: #dadada;
-  --color-primary-container: #ffd700;
-  --color-outline: #999077;
-  --color-on-primary-fixed-variant: #544600;
-  --color-surface-bright: #393939;
-  --color-primary-fixed-dim: #e9c400;
-  --color-surface-container: #1f1f1f;
-  --color-secondary-fixed: #e5e2e1;
-  --color-on-tertiary: #2f3131;
-  --color-primary: #fff6df;
-  --color-secondary-fixed-dim: #c8c6c5;
-  --color-surface-container-low: #1b1b1b;
-  --color-surface-container-high: #2a2a2a;
-  --color-on-tertiary-fixed-variant: #464747;
-  --color-on-surface-variant: #d0c6ab;
-  --color-secondary-container: #4a4949;
-  --color-surface-container-lowest: #0e0e0e;
-  --color-tertiary-fixed-dim: #c7c6c6;
-  --color-inverse-on-surface: #303030;
-  --color-outline-variant: #4d4732;
-  --color-surface: #131313;
+  /* Corporate Blue Theme */
+  --color-background: #F8FAFC;
+  --color-on-background: #1F2937;
+  --color-surface: #FFFFFF;
+  --color-on-surface: #1F2937;
+  --color-surface-dim: #F1F5F9;
+  --color-surface-bright: #FFFFFF;
+
+  --color-primary: #2563EB;
+  --color-on-primary: #FFFFFF;
+  --color-primary-container: #2563EB;
+  --color-on-primary-container: #FFFFFF;
+  --color-primary-fixed: #2563EB;
+  --color-primary-fixed-dim: #1D4ED8;
+  --color-on-primary-fixed: #FFFFFF;
+  --color-on-primary-fixed-variant: #1D4ED8;
+
+  --color-secondary: #1E40AF;
+  --color-on-secondary: #FFFFFF;
+  --color-secondary-container: #E0F2FE;
+  --color-on-secondary-container: #0369A1;
+  --color-secondary-fixed: #E0F2FE;
+  --color-secondary-fixed-dim: #BAE6FD;
+  --color-on-secondary-fixed: #0369A1;
+
+  --color-accent: #38BDF8;
+
+  --color-tertiary: #38BDF8;
+  --color-on-tertiary: #FFFFFF;
+  --color-tertiary-container: #E0F7FF;
+  --color-on-tertiary-container: #0369A1;
+  --color-tertiary-fixed: #E0F7FF;
+  --color-tertiary-fixed-dim: #BDECFF;
+
+  --color-surface-container-lowest: #FFFFFF;
+  --color-surface-container-low: #F8FAFC;
+  --color-surface-container: #F1F5F9;
+  --color-surface-container-high: #E2E8F0;
+  --color-surface-container-highest: #CBD5E1;
+
+  --color-outline: #94A3B8;
+  --color-outline-variant: #E2E8F0;
+  --color-on-surface-variant: #475569;
+
+  --color-error: #EF4444;
+  --color-on-error: #FFFFFF;
+  --color-error-container: #FEE2E2;
+  --color-on-error-container: #991B1B;
+
+  --color-surface-variant: #F1F5F9;
+  --color-inverse-surface: #1F2937;
+  --color-inverse-on-surface: #F8FAFC;
+  --color-inverse-primary: #3B82F6;
 
   /* Custom Spacing Rules */
   --spacing-container-padding: 1.5rem;
@@ -87,8 +92,8 @@
 }
 
 body {
-  background-color: #131313;
-  color: #e2e2e2;
+  background-color: var(--color-background);
+  color: var(--color-on-background);
   font-family: var(--font-sans);
   overflow: hidden; /* Prevent native scrolling */
 }
@@ -141,7 +146,7 @@ body {
   transform-style: preserve-3d;
   backface-visibility: hidden;
   overflow: hidden;
-  background-color: #131313;
+  background-color: var(--color-surface);
 }
 
 .card-top {
@@ -228,7 +233,7 @@ body {
   height: 200%;
   display: flex;
   flex-direction: column;
-  background-color: #131313;
+  background-color: var(--color-surface);
 }
 
 .card-top .card-content-full {
