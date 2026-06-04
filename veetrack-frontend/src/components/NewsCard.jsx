@@ -96,7 +96,7 @@ export const NewsCard = ({
   const renderCardContent = (isTop) => <article className="card-content-full bg-surface border border-outline-variant/30 md:border-outline-variant select-none">
       {/* Article Image (Top 45% of height when visible) */}
       <div className={`w-full relative shrink-0 bg-surface-container-lowest overflow-hidden transition-all duration-500 ease-in-out ${activePageIndex === 0 ? 'h-[45%] opacity-100' : 'h-0 opacity-0 pointer-events-none'}`}>
-        <img src={article.imageUrl} alt={article.imageAlt} className="w-full h-full object-cover grayscale opacity-90 mix-blend-luminosity" draggable="false" />
+        <img src={article.imageUrl} alt={article.imageAlt} className="w-full h-full object-cover opacity-95 transition-all duration-300" draggable="false" />
         <div className="absolute inset-0 bg-gradient-to-t from-surface to-transparent" />
 
         {/* Source and Sentiment Badges */}
@@ -104,8 +104,8 @@ export const NewsCard = ({
           <span className="px-2.5 py-0.5 bg-background/80 backdrop-blur-md border border-outline-variant/30 text-on-surface rounded-full font-label-sm text-[11px] uppercase tracking-wider shadow-sm">
             {article.source}
           </span>
-          <span className={`px-2.5 py-0.5 rounded-full font-label-sm text-[11px] uppercase tracking-wider shadow-sm flex items-center gap-1.5 bg-background/80 backdrop-blur-md border ${article.sentiment === 'positive' ? 'border-emerald-500/30 text-emerald-400' : article.sentiment === 'negative' ? 'border-rose-500/30 text-rose-400' : 'border-yellow-500/30 text-yellow-400'}`}>
-            <span className={`w-1.5 h-1.5 rounded-full ${article.sentiment === 'positive' ? 'bg-emerald-500' : article.sentiment === 'negative' ? 'bg-rose-500' : 'bg-yellow-500'}`} />
+          <span className={`px-2.5 py-0.5 rounded-full font-label-sm text-[11px] uppercase tracking-wider shadow-sm flex items-center gap-1.5 bg-background/80 backdrop-blur-md border ${article.sentiment === 'positive' ? 'border-emerald-200 text-emerald-700 dark:border-emerald-500/30 dark:text-emerald-400' : article.sentiment === 'negative' ? 'border-rose-200 text-rose-700 dark:border-rose-500/30 dark:text-rose-400' : 'border-amber-200 text-amber-700 dark:border-yellow-500/30 dark:text-yellow-400'}`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${article.sentiment === 'positive' ? 'bg-emerald-600 dark:bg-emerald-500' : article.sentiment === 'negative' ? 'bg-rose-600 dark:bg-rose-500' : 'bg-amber-600 dark:bg-yellow-500'}`} />
             {article.sentiment}
           </span>
         </div>
@@ -151,26 +151,26 @@ export const NewsCard = ({
           <div className="w-1/4 h-full px-container-padding pt-3 pb-12 flex flex-col justify-between shrink-0 box-border">
             <div className="flex flex-col flex-1 overflow-hidden">
               <div className="flex justify-between items-center mb-3 shrink-0">
-                <span className="inline-block px-2.5 py-0.5 bg-blue-500/10 border border-blue-500/30 text-blue-400 rounded-full font-label-sm text-[11px] uppercase tracking-wider">
+                <span className="inline-block px-2.5 py-0.5 bg-blue-50 border border-blue-200 text-blue-700 dark:bg-blue-950/30 dark:border-blue-800/50 dark:text-blue-400 rounded-full font-label-sm text-[11px] uppercase tracking-wider">
                   Facts & Analysis
                 </span>
                 <span className="text-[11px] font-mono text-on-surface-variant/50">2/4 • THE FACTS</span>
               </div>
               <div className="flex-1 overflow-y-auto space-y-4 pr-1 scrollbar-thin">
                 <div>
-                  <h4 className="text-[10px] font-bold text-blue-400 uppercase tracking-wider mb-2">What Happened</h4>
+                  <h4 className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider mb-2">What Happened</h4>
                   <ul className="space-y-2 font-body-lg text-body-md md:text-body-lg text-on-surface-variant leading-relaxed">
                     {article.whatHappened?.map((point, index) => <li key={index} className="flex gap-2 items-start text-left">
-                        <span className="text-blue-400 mt-2 shrink-0 w-1.5 h-1.5 rounded-full bg-blue-400" />
+                        <span className="text-blue-600 dark:text-blue-400 mt-2 shrink-0 w-1.5 h-1.5 rounded-full bg-blue-600 dark:bg-blue-400" />
                         <span>{point}</span>
                       </li>) || <li className="text-on-surface-variant/40 italic">No details available.</li>}
                   </ul>
                 </div>
                 <div>
-                  <h4 className="text-[10px] font-bold text-amber-400 uppercase tracking-wider mb-2 mt-2">Why It Happened</h4>
+                  <h4 className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider mb-2 mt-2">Why It Happened</h4>
                   <ul className="space-y-2 font-body-lg text-body-md md:text-body-lg text-on-surface-variant leading-relaxed">
                     {article.whyItMatters?.map((point, index) => <li key={index} className="flex gap-2 items-start text-left">
-                        <span className="text-amber-400 mt-2 shrink-0 w-1.5 h-1.5 rounded-full bg-amber-400" />
+                        <span className="text-amber-600 dark:text-amber-400 mt-2 shrink-0 w-1.5 h-1.5 rounded-full bg-amber-600 dark:bg-amber-400" />
                         <span>{point}</span>
                       </li>) || <li className="text-on-surface-variant/40 italic">No details available.</li>}
                   </ul>
@@ -187,7 +187,7 @@ export const NewsCard = ({
           <div className="w-1/4 h-full px-container-padding pt-3 pb-12 flex flex-col justify-between shrink-0 box-border">
             <div className="flex flex-col flex-1 overflow-hidden">
               <div className="flex justify-between items-center mb-3 shrink-0">
-                <span className="inline-block px-2.5 py-0.5 bg-purple-500/10 border border-purple-500/30 text-purple-400 rounded-full font-label-sm text-[11px] uppercase tracking-wider">
+                <span className="inline-block px-2.5 py-0.5 bg-purple-50 border border-purple-200 text-purple-700 dark:bg-purple-950/30 dark:border-purple-800/50 dark:text-purple-400 rounded-full font-label-sm text-[11px] uppercase tracking-wider">
                   AI Narrative
                 </span>
                 <span className="text-[11px] font-mono text-on-surface-variant/50">3/4 • COGNITIVE POV</span>
@@ -208,7 +208,7 @@ export const NewsCard = ({
           <div className="w-1/4 h-full px-container-padding pt-3 pb-12 flex flex-col justify-between shrink-0 box-border">
             <div className="flex flex-col flex-1 overflow-hidden">
               <div className="flex justify-between items-center mb-3 shrink-0">
-                <span className="inline-block px-2.5 py-0.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-full font-label-sm text-[11px] uppercase tracking-wider">
+                <span className="inline-block px-2.5 py-0.5 bg-emerald-50 border border-emerald-200 text-emerald-700 dark:bg-emerald-950/30 dark:border-emerald-800/50 dark:text-emerald-400 rounded-full font-label-sm text-[11px] uppercase tracking-wider">
                   Suggested Actions
                 </span>
                 <span className="text-[11px] font-mono text-on-surface-variant/50">4/4 • ACTION PLAYBOOK</span>
@@ -216,7 +216,7 @@ export const NewsCard = ({
               <div className="flex-1 overflow-y-auto pr-1 scrollbar-thin">
                 <ul className="space-y-3 font-body-lg text-body-md md:text-body-lg text-on-surface-variant leading-relaxed">
                   {article.aiActions?.map((point, index) => <li key={index} className="flex gap-2 items-start text-left">
-                      <span className="text-emerald-400 mt-2 shrink-0 w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                      <span className="text-emerald-600 dark:text-emerald-400 mt-2 shrink-0 w-1.5 h-1.5 rounded-full bg-emerald-600 dark:bg-emerald-400" />
                       <span>{point}</span>
                     </li>) || <li className="text-on-surface-variant/40 italic">No details available.</li>}
                 </ul>
@@ -224,7 +224,7 @@ export const NewsCard = ({
             </div>
             <div className="pt-2 flex justify-between items-center text-[11px] text-on-surface-variant/40 shrink-0">
               <span>Swipe right</span>
-              <span className="text-emerald-400 font-semibold flex items-center gap-0.5">Ready <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" /></span>
+              <span className="text-emerald-700 dark:text-emerald-400 font-semibold flex items-center gap-0.5">Ready <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-600 dark:bg-emerald-500 animate-ping" /></span>
             </div>
           </div>
         </div>

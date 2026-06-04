@@ -29,14 +29,9 @@ const AnalysisLoader = ({
         <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-primary-container to-transparent animate-pulse" />
         
         {/* Pulsing Logo Icon */}
-        <div className="w-16 h-16 bg-primary-container/10 border border-primary-container/30 text-primary-container rounded-full mx-auto flex items-center justify-center mb-6 relative">
-          <div className="absolute inset-0 rounded-full bg-primary-container/20 animate-ping opacity-75" />
-          <svg className="w-8 h-8 animate-pulse" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="9" className="opacity-25" />
-            <path d="M12 3v5.5" />
-            <path d="M7 8.5l5 7 5-7" />
-            <path d="M12 15.5V21" />
-          </svg>
+        <div className="w-20 h-20 bg-white border border-outline-variant/30 rounded-2xl mx-auto flex items-center justify-center mb-6 relative overflow-hidden p-1.5 shadow-md">
+          <div className="absolute inset-0 rounded-2xl bg-primary-container/10 animate-pulse" />
+          <img src="/logo.png" alt="Vee Technologies Logo" className="w-full h-full object-contain relative z-10 animate-pulse" />
         </div>
 
         <h3 className="text-center font-headline-sm text-headline-sm text-on-surface mb-2 tracking-tight">
@@ -283,14 +278,8 @@ export default function Home() {
         <div className="absolute top-[20%] left-1/2 -translate-x-1/2 w-72 h-72 bg-primary-container/5 rounded-full blur-[100px] pointer-events-none -z-10 animate-pulse" />
 
         {/* Vee Track Logo */}
-        <div className="w-20 h-20 bg-primary-container/10 border border-primary-container/30 text-primary-container rounded-full flex items-center justify-center mb-6 relative shadow-lg">
-          <div className="absolute inset-0 rounded-full bg-primary-container/10 animate-pulse" />
-          <svg className="w-10 h-10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="9" className="opacity-25" />
-            <path d="M12 3v5.5" />
-            <path d="M7 8.5l5 7 5-7" />
-            <path d="M12 15.5V21" />
-          </svg>
+        <div className="w-28 h-28 bg-white border border-outline-variant/30 rounded-2xl flex items-center justify-center mb-6 relative shadow-lg overflow-hidden p-2">
+          <img src="/logo.png" alt="Vee Technologies" className="w-full h-full object-contain" />
         </div>
 
         <h1 className="font-headline-lg text-4xl font-extrabold text-on-surface tracking-tight mb-3 select-none">

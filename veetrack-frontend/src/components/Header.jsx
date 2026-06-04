@@ -54,14 +54,13 @@ export const Header = ({
           </button>
         </form> : <>
           <div className="flex items-center gap-4">
-            <div onClick={onLogoClick} className="font-headline-lg-mobile text-headline-lg-mobile tracking-tighter text-primary font-bold select-none cursor-pointer flex items-center gap-2">
-              <svg className="w-7 h-7 text-primary-container" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="9" className="opacity-25" />
-                <path d="M12 3v5.5" />
-                <path d="M7 8.5l5 7 5-7" />
-                <path d="M12 15.5V21" />
-              </svg>
-              <span>VEE TRACK</span>
+            <div onClick={onLogoClick} className="font-headline-lg-mobile text-headline-lg-mobile tracking-tighter text-primary font-bold select-none cursor-pointer flex items-center gap-2.5">
+              <div className="h-9 w-9 bg-white border border-outline-variant/30 rounded-lg flex items-center justify-center overflow-hidden p-0.5 shadow-sm">
+                <img src="/logo.png" alt="Vee Technologies Logo" className="w-full h-full object-contain" />
+              </div>
+              <span className="flex items-center">
+                VEE<span className="text-primary-container font-light ml-1">TRACK</span>
+              </span>
             </div>
           </div>
 

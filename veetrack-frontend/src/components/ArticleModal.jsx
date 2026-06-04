@@ -106,7 +106,7 @@ export const ArticleModal = ({
 
           {/* Hero Image */}
           <div className="w-full h-[240px] md:h-[340px] relative overflow-hidden rounded mb-8 border border-outline-variant/20 bg-surface-container-lowest">
-            <img src={article.imageUrl} alt={article.imageAlt} className="w-full h-full object-cover grayscale opacity-80 mix-blend-luminosity hover:scale-105 transition-transform duration-700" />
+            <img src={article.imageUrl} alt={article.imageAlt} className="w-full h-full object-cover opacity-90 hover:scale-105 transition-transform duration-700" />
             <div className="absolute inset-0 bg-gradient-to-t from-surface via-transparent to-transparent" />
           </div>
 
