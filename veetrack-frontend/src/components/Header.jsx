@@ -20,6 +20,9 @@ export const Header = ({
     id: 'explore',
     label: 'Explore'
   }, {
+    id: 'social_impact',
+    label: 'Social Impact'
+  }, {
     id: 'saved',
     label: 'Saved'
   }, {

@@ -38,17 +38,16 @@ def init_models():
     # 2. NER Model (spaCy)
     if _nlp is None:
         import spacy
-        try:
-            _nlp = spacy.load("en_core_web_trf")
-            print("[Models] spaCy en_core_web_trf loaded [OK]")
-        except Exception as e:
-            print(f"[Models] spaCy en_core_web_trf failed to load, falling back to en_core_web_sm: {e}")
+        # Prefer en_core_web_sm for fast CPU performance, fall back to trf if needed
+        for model_name in ("en_core_web_sm", "en_core_web_trf"):
             try:
-                _nlp = spacy.load("en_core_web_sm")
-                print("[Models] spaCy en_core_web_sm loaded [OK]")
-            except Exception as e2:
-                print(f"[Models] spaCy en_core_web_sm failed to load: {e2}")
-                raise e2
+                _nlp = spacy.load(model_name)
+                print(f"[Models] spaCy {model_name} loaded [OK]")
+                break
+            except Exception as e:
+                logger.warning(f"Could not load spaCy model {model_name}: {e}")
+        if _nlp is None:
+            raise RuntimeError("No spaCy model could be loaded.")
 
     # 3. Embeddings Model (all-MiniLM-L6-v2)
     if _embed_model is None:

@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Newspaper, Compass, Bookmark, User } from 'lucide-react';
+import { Newspaper, Compass, Bookmark, User, TrendingUp } from 'lucide-react';
 export const BottomNav = ({
   activeTab = 'foryou',
   onTabChange,
@@ -20,6 +20,10 @@ export const BottomNav = ({
     id: 'explore',
     label: 'Explore',
     icon: Compass
+  }, {
+    id: 'social_impact',
+    label: 'Impact',
+    icon: TrendingUp
   }, {
     id: 'saved',
     label: 'Saved',

@@ -5,6 +5,7 @@ import { Header } from '@/components/Header';
 import { NewsReader } from '@/components/NewsReader';
 import { BottomNav } from '@/components/BottomNav';
 import { ArticleModal } from '@/components/ArticleModal';
+import { SocialImpactDashboard } from '@/components/SocialImpactDashboard';
 import { mockArticles } from '@/data/mockArticles';
 import { Bookmark, User, Flame, Clock, Award, ChevronRight } from 'lucide-react';
 
@@ -71,13 +72,15 @@ export default function Home() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentArticles, setCurrentArticles] = useState(mockArticles);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isSocialAnalyzing, setIsSocialAnalyzing] = useState(false);
   const [searchKeyword, setSearchKeyword] = useState(null);
+  const [socialImpactData, setSocialImpactData] = useState(null);
 
   // User interactions state (saved & read lists)
-  const [savedIds, setSavedIds] = useState<string[]>([]);
-  const [savedArticles, setSavedArticles] = useState<Article[]>([]);
-  const [readIds, setReadIds] = useState<string[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [savedIds, setSavedIds] = useState([]);
+  const [savedArticles, setSavedArticles] = useState([]);
+  const [readIds, setReadIds] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState(null);
 
   // Hydrate states from localStorage safely
   useEffect(() => {
@@ -92,15 +95,15 @@ if (read) {
 }
 }, []);
 
-const saveToStorage = (key: string, value: any) => {
+const saveToStorage = (key, value) => {
   localStorage.setItem(key, JSON.stringify(value));
 };
 
 
-  const toggleSaveArticle = (articleId: string) => {
+  const toggleSaveArticle = (articleId) => {
     const isAlreadySaved = savedIds.includes(articleId);
-    let updatedIds: string[];
-    let updatedArticles: Article[];
+    let updatedIds;
+    let updatedArticles;
 
     if (isAlreadySaved) {
       updatedIds = savedIds.filter((id) => id !== articleId);
@@ -145,118 +148,157 @@ const saveToStorage = (key: string, value: any) => {
   };
   const handleSearch = async (keyword) => {
     setIsAnalyzing(true);
+    setIsSocialAnalyzing(true);
     setSearchKeyword(keyword);
+    setSocialImpactData(null);
     setActiveTab('foryou'); // Redirect to news reader tab on search
     setSelectedCategory(null);
-    try {
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://127.0.0.1:8000';
-      const response = await fetch(`${backendUrl}/api/intelligence`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          keywords: [keyword],
-          days: 5
-        })
-      });
-      if (response.ok) {
-        const data = await response.json();
-        const articles = [];
-        const CATEGORY_IMAGES = {
-          Technology: 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=600&q=80',
-          Business: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=600&q=80',
-          Science: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=600&q=80',
-          Culture: 'https://images.unsplash.com/photo-1506157786151-b8491531f063?auto=format&fit=crop&w=600&q=80',
-          Sports: 'https://images.unsplash.com/photo-1517649763962-0c623066013b?auto=format&fit=crop&w=600&q=80',
-          Global: 'https://images.unsplash.com/photo-1526470608268-f674ce90ebd4?auto=format&fit=crop&w=600&q=80'
-        };
-        if (data.companyNews && Array.isArray(data.companyNews)) {
-          data.companyNews.forEach((item, idx) => {
-            const category = item.section === 'company' ? 'Business' : 'Technology';
-            const imageUrl = CATEGORY_IMAGES[category] || CATEGORY_IMAGES.Technology;
-            
-            // Clean up noisy snippets (HTML entities, duplicated suffixes)
-            let cleanHeadline = (item.headline || 'Untitled Article').replace(/&nbsp;/gi, ' ').replace(/&amp;/gi, '&').replace(/&quot;/gi, '"');
-            let rawSnippet = (item.snippet || '').replace(/&nbsp;/gi, ' ').replace(/&amp;/gi, '&').replace(/&quot;/gi, '"');
-            
-            // Build extremely elaborate bullets for 'What Happened' and 'Why It Matters'
-            let whatHappenedBullets = [];
-            let whyItMattersBullets = [];
-            
-            // Function to split large paragraphs into bullet points
-            const textToBullets = (text, fallbackArray) => {
-              if (text && text.length > 30) {
-                return text.split(/(?<=[.!?])\s+/).filter(s => s.length > 10);
+    
+    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://127.0.0.1:8000';
+
+    const fetchNews = async () => {
+      try {
+        const response = await fetch(`${backendUrl}/api/intelligence`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            keywords: [keyword],
+            days: 5
+          })
+        });
+        if (response.ok) {
+          const data = await response.json();
+          const articles = [];
+          const CATEGORY_IMAGES = {
+            Technology: 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=600&q=80',
+            Business: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=600&q=80',
+            Science: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=600&q=80',
+            Culture: 'https://images.unsplash.com/photo-1506157786151-b8491531f063?auto=format&fit=crop&w=600&q=80',
+            Sports: 'https://images.unsplash.com/photo-1517649763962-0c623066013b?auto=format&fit=crop&w=600&q=80',
+            Global: 'https://images.unsplash.com/photo-1526470608268-f674ce90ebd4?auto=format&fit=crop&w=600&q=80'
+          };
+          if (data.companyNews && Array.isArray(data.companyNews)) {
+            data.companyNews.forEach((item, idx) => {
+              const category = item.section === 'company' ? 'Business' : 'Technology';
+              const imageUrl = CATEGORY_IMAGES[category] || CATEGORY_IMAGES.Technology;
+              
+              // Clean up noisy snippets (HTML entities, duplicated suffixes)
+              let cleanHeadline = (item.headline || 'Untitled Article').replace(/&nbsp;/gi, ' ').replace(/&amp;/gi, '&').replace(/&quot;/gi, '"');
+              let rawSnippet = (item.snippet || '').replace(/&nbsp;/gi, ' ').replace(/&amp;/gi, '&').replace(/&quot;/gi, '"');
+              
+              // Build extremely elaborate bullets for 'What Happened' and 'Why It Matters'
+              let whatHappenedBullets = [];
+              let whyItMattersBullets = [];
+              
+              // Function to split large paragraphs into bullet points
+              const textToBullets = (text, fallbackArray) => {
+                if (text && text.length > 30) {
+                  return text.split(/(?<=[.!?])\s+/).filter(s => s.length > 10);
+                }
+                return fallbackArray;
+              };
+
+              // Parse LLM elaborated fields if available
+              if (item.llm_what_happened) {
+                whatHappenedBullets = textToBullets(item.llm_what_happened, [cleanHeadline, rawSnippet]);
+              } else {
+                whatHappenedBullets = textToBullets(rawSnippet, [cleanHeadline]);
               }
-              return fallbackArray;
-            };
+              
+              if (item.llm_why_it_matters) {
+                whyItMattersBullets = textToBullets(item.llm_why_it_matters, [item.businessImpact]);
+              } else {
+                whyItMattersBullets = [item.businessImpact || 'Ongoing monitoring required.', `Sentiment is predominantly ${item.sentiment}.`, `Source authority level: ${item.relevanceScore > 50 ? 'High' : 'Medium'}.`];
+              }
 
-            // Parse LLM elaborated fields if available
-            if (item.llm_what_happened) {
-              whatHappenedBullets = textToBullets(item.llm_what_happened, [cleanHeadline, rawSnippet]);
-            } else {
-              whatHappenedBullets = textToBullets(rawSnippet, [cleanHeadline]);
-            }
-            
-            if (item.llm_why_it_matters) {
-              whyItMattersBullets = textToBullets(item.llm_why_it_matters, [item.businessImpact]);
-            } else {
-              whyItMattersBullets = [item.businessImpact || 'Ongoing monitoring required.', `Sentiment is predominantly ${item.sentiment}.`, `Source authority level: ${item.relevanceScore > 50 ? 'High' : 'Medium'}.`];
-            }
-
-            // Construct a highly readable, story-driven AI Narrative
-            let storyNarrative = item.llm_ai_narrative;
-            if (!storyNarrative || storyNarrative.length < 30) {
-                let globalBrief = data.executiveBrief?.happened && data.executiveBrief.happened !== "Analysis unavailable." 
-                  ? data.executiveBrief.happened 
-                  : '';
+              // Construct a highly readable, story-driven AI Narrative
+              let storyNarrative = item.llm_ai_narrative;
+              if (!storyNarrative || storyNarrative.length < 30) {
+                  let globalBrief = data.executiveBrief?.happened && data.executiveBrief.happened !== "Analysis unavailable." 
+                    ? data.executiveBrief.happened 
+                    : '';
+                    
+                  storyNarrative = `This article highlights significant developments regarding ${cleanHeadline}. `;
+                  if (rawSnippet) {
+                    storyNarrative += `Fundamentally, ${rawSnippet.charAt(0).toLowerCase() + rawSnippet.slice(1)} `;
+                  }
+                  if (item.businessImpact) {
+                    storyNarrative += `From a strategic perspective, ${item.businessImpact.charAt(0).toLowerCase() + item.businessImpact.slice(1)} `;
+                  }
+                  storyNarrative += `The overall media sentiment is ${item.sentiment}, suggesting that the audience is perceiving this as ${item.sentiment === 'positive' ? 'highly favorable' : item.sentiment === 'negative' ? 'a potential concern' : 'a neutral matter of fact'}.`;
                   
-                storyNarrative = `This article highlights significant developments regarding ${cleanHeadline}. `;
-                if (rawSnippet) {
-                  storyNarrative += `Fundamentally, ${rawSnippet.charAt(0).toLowerCase() + rawSnippet.slice(1)} `;
-                }
-                if (item.businessImpact) {
-                  storyNarrative += `From a strategic perspective, ${item.businessImpact.charAt(0).toLowerCase() + item.businessImpact.slice(1)} `;
-                }
-                storyNarrative += `The overall media sentiment is ${item.sentiment}, suggesting that the audience is perceiving this as ${item.sentiment === 'positive' ? 'highly favorable' : item.sentiment === 'negative' ? 'a potential concern' : 'a neutral matter of fact'}.`;
-                
-                if (globalBrief) {
-                  storyNarrative += `\n\nBroader context: ${globalBrief}`;
-                }
-            }
+                  if (globalBrief) {
+                    storyNarrative += `\n\nBroader context: ${globalBrief}`;
+                  }
+              }
 
-            articles.push({
-              id: `art-${idx}-${Date.now()}`,
-              category: category,
-              title: cleanHeadline,
-              summary: rawSnippet,
-              keywordSummary: `Relevance score: ${item.relevanceScore}/100. Mentioned entities: ${[...(item.entities?.organizations || []), ...(item.entities?.people || [])].join(', ')}.`,
-              whatHappened: whatHappenedBullets,
-              whyItMatters: whyItMattersBullets,
-              aiActions: [item.relevanceExplanation || 'Continue standard tracking.', 'Monitor closely for updates.', 'Cross-reference with related competitors.'],
-              imageUrl: imageUrl,
-              imageAlt: item.headline,
-              author: item.publication,
-              publishedAt: item.date || 'Recent',
-              readingTime: '3 min read',
-              source: item.publication,
-              sentiment: item.sentiment === 'positive' || item.sentiment === 'negative' ? item.sentiment : 'neutral',
-              content: `<p class="mb-4">${item.fullContent || item.snippet}</p>`,
-              aiNarrative: storyNarrative
+              articles.push({
+                id: `art-${idx}-${Date.now()}`,
+                category: category,
+                title: cleanHeadline,
+                summary: rawSnippet,
+                keywordSummary: `Relevance score: ${item.relevanceScore}/100. Mentioned entities: ${[...(item.entities?.organizations || []), ...(item.entities?.people || [])].join(', ')}.`,
+                whatHappened: whatHappenedBullets,
+                whyItMatters: whyItMattersBullets,
+                aiActions: [item.relevanceExplanation || 'Continue standard tracking.', 'Monitor closely for updates.', 'Cross-reference with related competitors.'],
+                imageUrl: imageUrl,
+                imageAlt: item.headline,
+                author: item.publication,
+                publishedAt: item.date || 'Recent',
+                readingTime: '3 min read',
+                source: item.publication,
+                sentiment: item.sentiment === 'positive' || item.sentiment === 'negative' ? item.sentiment : 'neutral',
+                content: `<p class="mb-4">${item.fullContent || item.snippet}</p>`,
+                aiNarrative: storyNarrative
+              });
             });
+          }
+          if (articles.length > 0) {
+            setCurrentArticles(articles);
+            setHasSearched(true);
+          }
+        }
+      } catch (e) {
+        console.error('Search fetch failed:', e);
+      } finally {
+        setIsAnalyzing(false);
+      }
+    };
+
+    const fetchSocial = async () => {
+      try {
+        const response = await fetch(`${backendUrl}/api/social-impact`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            keyword: keyword
+          })
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setSocialImpactData(data);
+        } else {
+          setSocialImpactData({
+            success: false,
+            error: `API Direct failed with status ${response.status}`
           });
         }
-        if (articles.length > 0) {
-          setCurrentArticles(articles);
-          setHasSearched(true);
-        }
+      } catch (e) {
+        console.error('Social impact fetch failed:', e);
+        setSocialImpactData({
+          success: false,
+          error: 'Connection to social impact API failed'
+        });
+      } finally {
+        setIsSocialAnalyzing(false);
       }
-    } catch (e) {
-      console.error('Search fetch failed:', e);
-    } finally {
-      setIsAnalyzing(false);
-    }
+    };
+
+    await Promise.all([fetchNews(), fetchSocial()]);
   };
 
   // Filter logic based on active tab
@@ -334,6 +376,9 @@ const saveToStorage = (key: string, value: any) => {
   const renderMainContent = () => {
     if (!hasSearched) {
       return renderLandingPage();
+    }
+    if (activeTab === 'social_impact') {
+      return <SocialImpactDashboard data={socialImpactData} isLoading={isSocialAnalyzing} keyword={searchKeyword} />;
     }
     if (activeTab === 'profile') {
       return <div className="w-full max-w-[450px] md:max-w-[600px] h-full flex flex-col justify-start px-6 pt-6 overflow-y-auto pb-6">

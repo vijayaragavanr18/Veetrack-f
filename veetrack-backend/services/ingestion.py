@@ -362,6 +362,59 @@ async def fetch_wikimedia(keyword: str) -> list[dict]:
         return []
 
 
+async def fetch_newsdata(keyword: str, days: int = 5) -> list[dict]:
+    """Fetch from NewsData.io API using the environment API key."""
+    import os
+    api_key = os.getenv("NEWSDATA_API_KEY")
+    if not api_key:
+        logger.debug("[NewsData.io] NEWSDATA_API_KEY not configured, skipping")
+        return []
+
+    url = f"https://newsdata.io/api/1/news?apikey={api_key}&q={quote_plus(keyword)}"
+    try:
+        async with _get_client(timeout=10) as client:
+            resp = await client.get(url)
+        if resp.status_code != 200:
+            logger.warning("[NewsData.io] Error response %d for '%s': %s", resp.status_code, keyword, resp.text)
+            return []
+            
+        data = resp.json()
+        if data.get("status") != "success":
+            logger.warning("[NewsData.io] API status failure: %s", data.get("results", {}).get("message", "unknown error"))
+            return []
+
+        articles = []
+        for item in data.get("results", []):
+            title = item.get("title", "")
+            link = item.get("link", "")
+            published_at = item.get("pubDate", "")
+            if published_at:
+                try:
+                    # NewsData returns date like "YYYY-MM-DD HH:MM:SS"
+                    dt = datetime.strptime(published_at, "%Y-%m-%d %H:%M:%S")
+                    published_at = dt.isoformat()
+                except Exception:
+                    pass
+            
+            body_text = item.get("content") or item.get("description") or title
+            source = item.get("source_id") or "NewsData"
+            
+            articles.append(
+                {
+                    "title": title,
+                    "url": link,
+                    "published_at": published_at or datetime.utcnow().isoformat(),
+                    "source": source.title(),
+                    "body_text": _strip_html(body_text),
+                    "origin": "newsdata",
+                }
+            )
+        return articles
+    except Exception as e:
+        logger.warning("[NewsData.io] Error fetching '%s': %s", keyword, e)
+        return []
+
+
 # ── Parallel Fetch Orchestrator ─────────────────────────────────
 
 
@@ -369,7 +422,7 @@ async def fetch_all_sources(
     keywords: list[str], days: int = 5
 ) -> list[dict]:
     """
-    Fetch from all 5 sources in parallel for each keyword.
+    Fetch from all sources in parallel for each keyword.
     Returns deduplicated, merged article list.
     """
     all_articles: list[dict] = []
@@ -382,6 +435,7 @@ async def fetch_all_sources(
             fetch_hackernews(keyword, days),
             fetch_mastodon(keyword),
             fetch_wikimedia(keyword),
+            fetch_newsdata(keyword, days),
             return_exceptions=True,
         )
         for batch in results:

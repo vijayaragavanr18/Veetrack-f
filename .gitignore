@@ -16,6 +16,7 @@ veetrack-backend/**/*.pyc
 veetrack-backend/**/*.pyo
 *.egg-info/
 .pytest_cache/
+veetrack-backend/.veetrack_cache/
 
 # ── Node.js ──────────────────────────────────────────────
 node_modules/

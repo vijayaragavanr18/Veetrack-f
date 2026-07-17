@@ -27,7 +27,7 @@ _local_env = _backend_dir / ".env"          # legacy fallback
 _env_file = _root_env if _root_env.exists() else _local_env
 if _env_file.exists():
     from dotenv import load_dotenv
-    load_dotenv(_env_file, override=False)
+    load_dotenv(_env_file, override=True)
 
 
 import uvicorn
@@ -36,6 +36,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from routers import alerts, chat, feed, intelligence, reactions
 from routers.tracking_brief import router as tracking_brief_router
+from routers.social_impact import router as social_impact_router
 
 # ── Logging ──────────────────────────────────────────────────────
 
@@ -99,6 +100,7 @@ app.include_router(chat.router)
 app.include_router(reactions.router)
 app.include_router(alerts.router)
 app.include_router(tracking_brief_router)
+app.include_router(social_impact_router)
 
 
 # ── Health Check ─────────────────────────────────────────────────

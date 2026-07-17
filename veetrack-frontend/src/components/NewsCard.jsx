@@ -268,18 +268,18 @@ export const NewsCard = ({
         e.stopPropagation();
       }} onWheel={(e) => {
         e.stopPropagation();
-      }} className={`absolute inset-0 bg-surface-container-lowest border-t border-outline-variant/30 flex flex-col z-40 transition-transform duration-300 ease-out select-none ${isChatOpen ? 'translate-y-0' : 'translate-y-full'}`}>
+      }} className={`absolute inset-0 bg-surface flex flex-col z-40 transition-transform duration-300 ease-out select-none overflow-hidden ${isChatOpen ? 'translate-y-0' : 'translate-y-full pointer-events-none'}`}>
           {/* Chat Header */}
           <div className="h-10 border-b border-outline-variant/20 px-container-padding flex justify-between items-center bg-surface-container-low shrink-0 select-none">
             <span className="text-[11px] font-semibold text-primary-container tracking-wider uppercase flex items-center gap-1.5">
               <MessageSquare size={12} />
               AI Assistant
             </span>
-            <button onClick={isTop ? (e) => {
+            <button onClick={!isTop ? (e) => {
             e.preventDefault();
             e.stopPropagation();
             setIsChatOpen(false);
-          } : undefined} tabIndex={isTop ? 0 : -1} disabled={!isTop} className={`text-on-surface-variant/60 hover:text-primary p-1 rounded-full transition-colors ${isTop ? 'cursor-pointer hover:bg-surface-container-high' : 'pointer-events-none opacity-40'}`} aria-label="Close Chat">
+          } : undefined} tabIndex={isTop ? -1 : 0} disabled={isTop} className={`text-on-surface-variant/60 hover:text-primary p-1 rounded-full transition-colors ${isTop ? 'pointer-events-none opacity-40' : 'cursor-pointer hover:bg-surface-container-high'}`} aria-label="Close Chat">
               <X size={14} />
             </button>
           </div>
